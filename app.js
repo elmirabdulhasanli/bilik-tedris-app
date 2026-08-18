@@ -1208,7 +1208,7 @@
       
       if (data.father_name) document.getElementById('f-father-name').value = data.father_name;
       if (data.phone) document.getElementById('f-phone').value = data.phone;
-      if (data.budget) document.getElementById('f-budget').value = data.budget;
+      if (data.budget) setBudgetValue(data.budget);
 
       if (data.level) {
         document.querySelectorAll('#f-level .radio-opt').forEach(o => {
@@ -1789,6 +1789,34 @@
       '3 000 €-dan az': 0, '3 000 – 7 000 €': 1, '7 000 – 15 000 €': 2, '15 000 €-dan çox': 3
     };
 
+    // Büdcə seçimində "Digər (özün yaz)" seçilibsə əl ilə yazılan mətni, əks halda
+    // seçilmiş aralığın mətnini qaytarır — profilə saxlanılan yeganə "həqiqi" dəyər budur.
+    function getBudgetValue() {
+      const sel = document.getElementById('f-budget');
+      if (!sel) return '';
+      if (sel.value === 'other') return document.getElementById('f-budget-custom')?.value.trim() || '';
+      return sel.value;
+    }
+    // Saxlanmış (bazadan gələn və ya qaralamadan bərpa olunan) büdcə mətnini formaya qoyur —
+    // sabit aralıqlardan biridirsə seçir, deyilsə "Digər" seçib əl ilə yazılan xanaya yazır.
+    function setBudgetValue(val) {
+      const sel = document.getElementById('f-budget');
+      const custom = document.getElementById('f-budget-custom');
+      if (!sel || !val) return;
+      const isFixedOption = Array.from(sel.options).some(o => o.value === val && o.value !== 'other');
+      if (isFixedOption) {
+        sel.value = val;
+        if (custom) custom.style.display = 'none';
+      } else {
+        sel.value = 'other';
+        if (custom) { custom.value = val; custom.style.display = 'block'; }
+      }
+    }
+    document.getElementById('f-budget')?.addEventListener('change', () => {
+      const custom = document.getElementById('f-budget-custom');
+      if (custom) custom.style.display = document.getElementById('f-budget').value === 'other' ? 'block' : 'none';
+    });
+
     // Profilə (seçilmiş ölkə/ixtisas/büdcə/imtahan) əsasən TƏXMİNİ uyğunluq balı.
     // Real qəbul şərtləri bazada olmadığı üçün bu, göz qabağında olan meyarlara
     // görə şəffaf çəkilərlə hesablanan bir istiqamətləndirmədir, rəsmi qəbul zəmanəti deyil.
@@ -1797,7 +1825,7 @@
       if (selCountries.length) countryScore = selCountries.includes(country) ? 100 : 35;
 
       const tier = COUNTRY_COST_TIER[country] ?? 1;
-      const budgetVal = document.getElementById('f-budget')?.value;
+      const budgetVal = getBudgetValue();
       let budgetScore = 70;
       if (budgetVal && budgetVal in BUDGET_INDEX) {
         const idx = BUDGET_INDEX[budgetVal];
@@ -2072,7 +2100,7 @@
         fatherName: document.getElementById('f-father-name')?.value || '',
         email: document.getElementById('f-email')?.value || '',
         phone: document.getElementById('f-phone')?.value || '',
-        budget: document.getElementById('f-budget')?.value || '',
+        budget: getBudgetValue(),
         level: document.querySelector('#f-level .radio-opt.sel')?.dataset.value || '',
         exams: Array.from(document.querySelectorAll('#f-exams .chip.sel')).map(c => c.textContent),
         countries: selCountries, fields: selFields,
@@ -2123,7 +2151,7 @@
 
       const set = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
       set('f-name', s.name); set('f-father-name', s.fatherName); set('f-email', s.email); set('f-phone', s.phone);
-      set('f-budget', s.budget);
+      if (s.budget) setBudgetValue(s.budget);
 
       if (Array.isArray(s.countries)) selCountries = s.countries;
       if (Array.isArray(s.fields)) selFields = s.fields;
@@ -2169,7 +2197,7 @@
     }
 
     // Bütün onboarding sahələrini avtosaxlamaya bağla
-    ['f-name', 'f-father-name', 'f-email', 'f-phone', 'f-budget'].forEach(id => {
+    ['f-name', 'f-father-name', 'f-email', 'f-phone', 'f-budget', 'f-budget-custom'].forEach(id => {
       const el = document.getElementById(id);
       if (el) { el.addEventListener('input', saveOnboardingDraft); el.addEventListener('change', saveOnboardingDraft); }
     });
@@ -2190,7 +2218,7 @@
       let scoreArr = [];
       dynInputs.forEach(inp => { if (inp.value.trim()) scoreArr.push(`${inp.dataset.exam}: ${inp.value.trim()}`); });
       const score = scoreArr.length ? scoreArr.join(', ') : 'qeyd olunmayıb';
-      const budget = document.getElementById('f-budget').value;
+      const budget = getBudgetValue();
       const exams = Array.from(document.querySelectorAll('#f-exams .chip.sel')).map(c => c.textContent);
       const examsText = exams.length ? exams.join(', ') : 'seçilməyib';
       const countryText = selCountries.length ? selCountries.join(', ') : 'seçilməyib';
@@ -2429,6 +2457,8 @@
         lvl_master: 'Magistr',
         q_exams: 'Hansı imtahan nəticələrin / sertifikatların var?',
         q_budget: 'Təxmini illik büdcən (təhsil haqqı + yaşayış)',
+        budget_other: 'Digər (özün yaz)',
+        budget_other_ph: 'məs. 5000 $ və ya 10000 ₼',
         submit_profile: 'Profili tamamla',
         // Result
         res_back: '← Formu düzəlt',
@@ -2653,6 +2683,8 @@
         lvl_master: "Master's",
         q_exams: 'Which exam results / certificates do you have?',
         q_budget: 'Approximate yearly budget (tuition + living)',
+        budget_other: 'Other (type your own)',
+        budget_other_ph: 'e.g. $5000 or ₼10000',
         submit_profile: 'Complete profile',
         res_back: '← Edit the form',
         res_eyebrow: 'Profile ready',
@@ -2872,6 +2904,8 @@
         lvl_master: 'Магистратура',
         q_exams: 'Какие результаты экзаменов / сертификаты у вас есть?',
         q_budget: 'Примерный годовой бюджет (обучение + проживание)',
+        budget_other: 'Другое (укажите сами)',
+        budget_other_ph: 'напр. 5000 $ или 10000 ₼',
         submit_profile: 'Завершить профиль',
         res_back: '← Изменить форму',
         res_eyebrow: 'Профиль готов',
@@ -3091,6 +3125,8 @@
         lvl_master: 'Yüksek lisans',
         q_exams: 'Hangi sınav sonuçlarınız / sertifikalarınız var?',
         q_budget: 'Tahmini yıllık bütçeniz (öğrenim + yaşam)',
+        budget_other: 'Diğer (kendin yaz)',
+        budget_other_ph: 'örn. 5000 $ veya 10000 ₼',
         submit_profile: 'Profili tamamla',
         res_back: '← Formu düzenle',
         res_eyebrow: 'Profil hazır',
