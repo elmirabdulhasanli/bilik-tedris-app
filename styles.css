@@ -14,6 +14,50 @@
       --ink: #0F172A;
       --ink-soft: #64748B;
       --line: #E2E8F0;
+      --surface: #FFFFFF;
+      --surface-2: #F1EEE3;
+      --body-bg: #E2E8F0;
+    }
+
+    /* Qaranlıq rejim — Profil ekranındakı düymə ilə açılır, localStorage-da
+       saxlanılır. Cihazın öz sistem seçimi də (əlavə heç nə seçilməyibsə)
+       nəzərə alınır (bax: aşağıdakı prefers-color-scheme bloku). */
+    html.dark-theme {
+      --navy: #F8FAFC;
+      --navy-2: #E2E8F0;
+      --gold: #E8C468;
+      --gold-deep: #D4AF37;
+      --cream: #0B1120;
+      --teal: #60A5FA;
+      --teal-bg: #16233B;
+      --coral: #FB7185;
+      --coral-bg: #3A1620;
+      --ink: #E7EDF5;
+      --ink-soft: #93A3B8;
+      --line: #2A3B52;
+      --surface: #172133;
+      --surface-2: #1E2A3F;
+      --body-bg: #0B1120;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      html:not(.light-theme):not(.dark-theme) {
+        --navy: #F8FAFC;
+        --navy-2: #E2E8F0;
+        --gold: #E8C468;
+        --gold-deep: #D4AF37;
+        --cream: #0B1120;
+        --teal: #60A5FA;
+        --teal-bg: #16233B;
+        --coral: #FB7185;
+        --coral-bg: #3A1620;
+        --ink: #E7EDF5;
+        --ink-soft: #93A3B8;
+        --line: #2A3B52;
+        --surface: #172133;
+        --surface-2: #1E2A3F;
+        --body-bg: #0B1120;
+      }
     }
 
     * {
@@ -24,7 +68,7 @@
 
     body {
       margin: 0;
-      background: #E2E8F0;
+      background: var(--body-bg);
       font-family: 'Inter', sans-serif;
       display: flex;
       justify-content: center;
@@ -218,7 +262,7 @@
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: #EDEAE0;
+      background: var(--surface-2);
       flex-shrink: 0;
     }
 
@@ -380,7 +424,7 @@
     }
 
     .card {
-      background: #fff;
+      background: var(--surface);
       border: 1px solid var(--line);
       border-radius: 14px;
       padding: 14px;
@@ -426,7 +470,7 @@
 
     .tag {
       font-size: 10.5px;
-      background: #F1EEE3;
+      background: var(--surface-2);
       color: var(--ink-soft);
       padding: 3px 8px;
       border-radius: 6px;
@@ -438,7 +482,7 @@
       display: inline-flex;
       align-items: center;
       border: 1px solid var(--line);
-      background: #fff;
+      background: var(--surface);
       color: var(--ink-soft);
       font-size: 11px;
       font-weight: 500;
@@ -668,7 +712,7 @@
 
     .compare-remove-btn {
       border: 1px solid var(--line);
-      background: #fff;
+      background: var(--surface);
       color: var(--coral);
       border-radius: 8px;
       padding: 4px 9px;
@@ -682,7 +726,7 @@
 ═══════════════════════════════════════════════════ */
     .progress-track {
       height: 6px;
-      background: #EDEAE0;
+      background: var(--surface-2);
       border-radius: 4px;
       overflow: hidden;
       margin: 8px 0 4px;
@@ -725,7 +769,7 @@
     }
 
     .stamp.pending {
-      background: #F1EEE3;
+      background: var(--surface-2);
       color: var(--ink-soft);
     }
 
@@ -888,7 +932,7 @@
       font-family: 'Inter', sans-serif;
       font-size: 13.5px;
       color: var(--ink);
-      background: #fff;
+      background: var(--surface);
     }
 
     .chip-group {
@@ -904,7 +948,7 @@
       font-size: 12.5px;
       color: var(--ink-soft);
       cursor: pointer;
-      background: #fff;
+      background: var(--surface);
       user-select: none;
       transition: background .15s, color .15s, border-color .15s;
     }
@@ -1017,7 +1061,7 @@
     .navbar {
       display: flex;
       border-top: 1px solid var(--line);
-      background: #fff;
+      background: var(--surface);
       flex-shrink: 0;
     }
 
@@ -1248,7 +1292,7 @@
     .admin-body {
       flex: 1;
       overflow-y: auto;
-      background: #F0F4F8;
+      background: var(--surface-2);
       padding: 14px;
     }
 
@@ -1270,7 +1314,7 @@
     }
 
     .admin-stat-card {
-      background: #fff;
+      background: var(--surface);
       border-radius: 12px;
       padding: 14px 12px;
       box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
@@ -1309,7 +1353,7 @@
 
     /* Data Cards (tələbə / konsultasiya siyahısı) */
     .admin-card {
-      background: #fff;
+      background: var(--surface);
       border-radius: 12px;
       padding: 0;
       margin-bottom: 10px;
@@ -1434,7 +1478,7 @@
       font-size: 11.5px;
       color: var(--ink);
       padding: 5px 8px;
-      background: #fff;
+      background: var(--surface);
       cursor: pointer;
     }
 
@@ -1542,7 +1586,7 @@
     }
 
     .skeleton-card {
-      background: #fff;
+      background: var(--surface);
       border-radius: 12px;
       padding: 14px;
       margin-bottom: 10px;
@@ -1584,7 +1628,7 @@
       font-family: 'Inter', sans-serif;
       font-size: 13px;
       color: var(--ink);
-      background: #fff;
+      background: var(--surface);
     }
 
     .admin-divider {
@@ -1627,7 +1671,7 @@
     }
 
     .admin-btn-ghost {
-      background: #fff;
+      background: var(--surface);
       color: var(--navy);
       border: 1px solid var(--line) !important;
     }
@@ -1653,7 +1697,7 @@
       body {
         display: block;
         padding: 0;
-        background: #fff;
+        background: var(--surface);
       }
 
       #print-area {

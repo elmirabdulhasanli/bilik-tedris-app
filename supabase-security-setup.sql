@@ -354,6 +354,7 @@ create policy "doctemplates_select_all"
 -- Yalnız admin dəyişə bilər — sənəd tələbləri BÜTÜN tələbələrə təsir edən
 -- mərkəzi konfiqurasiyadır, staff-ın gündəlik işinin hissəsi deyil.
 drop policy if exists "doctemplates_write_staff" on public.document_templates;
+drop policy if exists "doctemplates_write_admin" on public.document_templates;
 create policy "doctemplates_write_admin"
   on public.document_templates for all
   to authenticated
@@ -464,6 +465,7 @@ create policy "announcements_select_all"
 -- Yalnız admin göndərə bilər — səhv/yersiz mesaj bütün tələbələrə gedən ən
 -- həssas əməliyyatdır.
 drop policy if exists "announcements_write_staff" on public.announcements;
+drop policy if exists "announcements_write_admin" on public.announcements;
 create policy "announcements_write_admin"
   on public.announcements for all
   to authenticated
@@ -622,8 +624,119 @@ create policy "news_posts_write_staff"
   with check (public.is_staff_or_admin());
 
 
+-- ─── 16. PARENT_LINKS — valideynə göndərilən, girişsiz "yalnız-oxu" link ──
+-- Admin/staff tələbə kartından link yaradır, onu valideynə göndərir. Link
+-- açanda (login olmadan) yalnız `get_parent_view` funksiyası ilə seçilmiş,
+-- məhdud məlumat görünür — cədvəllərin özünə birbaşa giriş YOXDUR.
+
+create table if not exists public.parent_links (
+  id bigint generated always as identity primary key,
+  token text not null unique default replace(gen_random_uuid()::text, '-', ''),
+  student_email text not null,
+  created_by text,
+  created_at timestamptz not null default now(),
+  revoked boolean not null default false
+);
+
+alter table public.parent_links enable row level security;
+
+drop policy if exists "parent_links_all_staff" on public.parent_links;
+create policy "parent_links_all_staff"
+  on public.parent_links for all
+  to authenticated
+  using (public.is_staff_or_admin())
+  with check (public.is_staff_or_admin());
+
+-- security definer: girişi olmayan (anon) ziyarətçi belə çağıra bilir, amma
+-- funksiyanın özü yalnız aşağıda seçdiyimiz sahələri qaytarır.
+create or replace function public.get_parent_view(p_token text)
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_link record;
+  v_profile record;
+  v_docs_total int;
+  v_docs_done int;
+  v_consult record;
+begin
+  select * into v_link from public.parent_links
+    where token = p_token and revoked = false
+    limit 1;
+
+  if v_link is null then
+    return json_build_object('error', 'invalid');
+  end if;
+
+  select name, target_countries into v_profile
+    from public.profiles where email = v_link.student_email limit 1;
+
+  select count(*) into v_docs_total
+    from public.document_status where profile_email = v_link.student_email;
+  select count(*) into v_docs_done
+    from public.document_status
+    where profile_email = v_link.student_email and status in ('done', 'approved');
+
+  select advisor_name, date, time into v_consult
+    from public.consultations
+    where profile_email = v_link.student_email and coalesce(status, 'pending') = 'confirmed'
+    order by date asc, time asc
+    limit 1;
+
+  return json_build_object(
+    'student_name', coalesce(v_profile.name, v_link.student_email),
+    'target_countries', coalesce(v_profile.target_countries, '{}'),
+    'docs_total', coalesce(v_docs_total, 0),
+    'docs_done', coalesce(v_docs_done, 0),
+    'consult_advisor', v_consult.advisor_name,
+    'consult_date', v_consult.date,
+    'consult_time', v_consult.time
+  );
+end;
+$$;
+
+grant execute on function public.get_parent_view(text) to anon, authenticated;
+
+
+-- ─── 17. EXAM_RESULTS — admin/staff-in əlavə etdiyi sınaq nəticələri ─────
+-- Ad/email ilə axtarıb tapılan tələbəyə sınaq nəticəsi əlavə olunur, bu da
+-- həmin tələbənin bildiriş zənginə avtomatik düşür (bax: index.html-də
+-- fetchExamResults()).
+
+create table if not exists public.exam_results (
+  id bigint generated always as identity primary key,
+  student_email text not null,
+  exam_name text not null,
+  result_text text not null,
+  created_by text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.exam_results enable row level security;
+
+drop policy if exists "exam_results_select_own_or_staff" on public.exam_results;
+create policy "exam_results_select_own_or_staff"
+  on public.exam_results for select
+  to authenticated
+  using (auth.email() = student_email or public.is_staff_or_admin());
+
+drop policy if exists "exam_results_write_staff" on public.exam_results;
+create policy "exam_results_write_staff"
+  on public.exam_results for insert
+  to authenticated
+  with check (public.is_staff_or_admin());
+
+drop policy if exists "exam_results_delete_staff" on public.exam_results;
+create policy "exam_results_delete_staff"
+  on public.exam_results for delete
+  to authenticated
+  using (public.is_staff_or_admin());
+
+
 -- ═══════════════════════════════════════════════════════════════════════
--- 16. SON ADDIM (ƏLLƏ, DİQQƏTLİ OLUN) — Bucket-i PUBLIC-dən PRIVATE-ə keçirin
+-- 18. SON ADDIM (ƏLLƏ, DİQQƏTLİ OLUN) — Bucket-i PUBLIC-dən PRIVATE-ə keçirin
 -- ───────────────────────────────────────────────────────────────────────
 -- Yuxarıdakı bütün policy-lər tətbiq olunub yoxlanmadan bunu icra ETMƏYİN.
 -- index.html artıq signed URL istifadə edir, ona görə bu addımdan sonra da

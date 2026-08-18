@@ -345,11 +345,33 @@
       }));
     }
 
+    let examResultsSchemaOk = true;
+    async function fetchExamResults() {
+      if (!sb || !currentEmail || !examResultsSchemaOk) return [];
+      const { data, error } = await sb.from('exam_results')
+        .select('*')
+        .eq('student_email', currentEmail)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (error) {
+        examResultsSchemaOk = false;
+        console.warn('Sınaq nəticələri cədvəli tapılmadı — supabase-security-setup.sql faylını yenidən icra edin:', error.message);
+        return [];
+      }
+      return (data || []).map(r => ({
+        id: `examresult-${r.id}`,
+        status: 'exam_result',
+        exam_name: r.exam_name,
+        result_text: r.result_text,
+        updated_at: r.created_at
+      }));
+    }
+
     async function buildNotifCache() {
-      const [list, announcements] = await Promise.all([fetchNotifications(), fetchAnnouncements()]);
+      const [list, announcements, examResults] = await Promise.all([fetchNotifications(), fetchAnnouncements(), fetchExamResults()]);
       const reminder = getUpcomingConsultReminder();
       const merged = reminder ? [reminder, ...list] : list;
-      return [...announcements, ...merged];
+      return [...announcements, ...examResults, ...merged];
     }
 
     async function refreshNotifBadge() {
@@ -393,6 +415,18 @@
               <div class="admin-card-row-info">
                 <p class="admin-row-name">${escapeHtml(t('notif_reminder_title', 'Yaxınlaşan görüş'))}</p>
                 <p class="admin-row-sub">${escapeHtml(c.advisor_name)} · ${escapeHtml(c.date)} saat ${escapeHtml(c.time)} · ${escapeHtml(t('notif_reminder_hours_tpl', '{hours} saat qalıb').replace('{hours}', c.hoursLeft))}</p>
+              </div>
+            </div>`;
+          }
+          if (c.status === 'exam_result') {
+            const when = c.updated_at ? new Date(c.updated_at).toLocaleDateString('az-AZ') : '';
+            return `
+            <div class="admin-card-row" style="align-items:flex-start; gap:10px;">
+              <span style="font-size:18px; flex-shrink:0; margin-top:1px;">📊</span>
+              <div class="admin-card-row-info">
+                <p class="admin-row-name">${escapeHtml(t('notif_exam_title', 'Sınaq nəticəniz əlavə edildi'))}</p>
+                <p class="admin-row-sub">${escapeHtml(c.exam_name)} — ${escapeHtml(c.result_text)}</p>
+                <p style="font-size:11px; color:var(--ink-soft); margin:3px 0 0;">${when}</p>
               </div>
             </div>`;
           }
@@ -1038,6 +1072,51 @@
         </div>`).join('');
     }
 
+    /* Valideyn üçün girişsiz, yalnız-oxu görünüş — URL-də ?parent=TOKEN
+       olanda splash/login əvəzinə birbaşa bu ekran göstərilir (bax: skriptin
+       sonundakı çağırışa). Bütün məlumat security-definer RPC-dən gəlir,
+       heç bir cədvələ birbaşa giriş yoxdur. */
+    async function initParentView(token) {
+      showScreen('parent-view');
+      const loadingEl = document.getElementById('parent-view-loading');
+      const errorEl = document.getElementById('parent-view-error');
+      const contentEl = document.getElementById('parent-view-content');
+      errorEl.style.display = 'none';
+      contentEl.style.display = 'none';
+      if (!sb) { loadingEl.style.display = 'none'; errorEl.style.display = 'block'; return; }
+
+      const { data, error } = await sb.rpc('get_parent_view', { p_token: token });
+      loadingEl.style.display = 'none';
+
+      if (error || !data || data.error) {
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      document.getElementById('parent-view-name').textContent = data.student_name || '—';
+      contentEl.style.display = 'block';
+
+      const total = data.docs_total || 0;
+      const done = data.docs_done || 0;
+      const pct = total ? Math.round((done / total) * 100) : 0;
+      document.getElementById('parent-view-doc-pct').textContent = pct + '%';
+      document.getElementById('parent-view-doc-fill').style.width = pct + '%';
+      document.getElementById('parent-view-doc-detail').textContent =
+        t('parent_view_doc_tpl', '{done}/{total} sənəd hazırdır').replace('{done}', done).replace('{total}', total);
+
+      const countries = Array.isArray(data.target_countries) ? data.target_countries : [];
+      document.getElementById('parent-view-countries').textContent =
+        countries.length ? countries.join(', ') : t('parent_view_none', 'Hələ seçilməyib');
+
+      const consultEl = document.getElementById('parent-view-consult');
+      if (data.consult_advisor && data.consult_date) {
+        consultEl.textContent = t('notif_confirmed_tpl', '{date} tarixində saat {time}-da {advisor} ilə görüşəcəksiniz')
+          .replace('{date}', data.consult_date).replace('{time}', data.consult_time).replace('{advisor}', data.consult_advisor);
+      } else {
+        consultEl.textContent = t('parent_view_none', 'Hələ seçilməyib');
+      }
+    }
+
     async function loadNews() {
       const listEl = document.getElementById('news-list');
       const emptyEl = document.getElementById('news-empty');
@@ -1110,6 +1189,11 @@
     loadTeamMembers();
     loadPartnerUniversities();
     loadNews();
+
+    // Valideyn linki ilə açılıbsa (?parent=TOKEN), splash/login əvəzinə
+    // birbaşa yalnız-oxu görünüşü göstər.
+    const __parentToken = new URLSearchParams(window.location.search).get('parent');
+    if (__parentToken) initParentView(__parentToken);
 
     async function restoreProfile(email) {
       if (!sb || !email) return;
@@ -2323,6 +2407,8 @@
         pr_countries: 'Hədəf ölkələr',
         pr_next_consult: 'Gələcək konsultasiya',
         lang_section: 'Dil seçimi',
+        appearance_section: 'Görünüş',
+        dark_mode_label: 'Qaranlıq rejim',
         edit_profile: 'Profili redaktə et',
         logout: 'Hesabdan çıx',
         // Onboarding
@@ -2365,8 +2451,19 @@
         notif_announcement_title: 'Mərkəzdən elan',
         notif_confirmed_title: 'Görüşünüz təsdiqləndi',
         notif_confirmed_tpl: '{date} tarixində saat {time}-da {advisor} ilə görüşəcəksiniz',
+        parent_view_eyebrow: 'Valideyn görünüşü',
+        parent_view_loading: 'Yüklənir...',
+        parent_view_invalid_title: 'Link etibarsızdır',
+        parent_view_invalid_sub: 'Bu link artıq aktiv deyil və ya ləğv edilib. Mərkəzlə əlaqə saxlayın.',
+        parent_view_docs: 'Sənəd irəliləyişi',
+        parent_view_doc_tpl: '{done}/{total} sənəd hazırdır',
+        parent_view_countries: 'Hədəf ölkələr',
+        parent_view_consult: 'Növbəti konsultasiya',
+        parent_view_footer: 'Bu, yalnız-oxu görünüşdür — Bilik Tədris Mərkəzi tərəfindən paylaşılıb.',
+        parent_view_none: 'Hələ seçilməyib',
         notif_reminder_title: 'Yaxınlaşan görüş',
         notif_reminder_hours_tpl: '{hours} saat qalıb',
+        notif_exam_title: 'Sınaq nəticəniz əlavə edildi',
         close: 'Bağla',
         // About us
         abt_center_desc: 'Bilik Tədris Mərkəzi 2007-ci ildən etibarən Sumqayıt şəhərində fəaliyyət göstərməyə başladı. Bu günə qədər yüzlərlə şagird və tələbənin uğur yolunda yanlarında olmuşdur. Tədris mərkəzimiz, təhsildə keyfiyyətə, nəticəyə və etibara əsaslanan yanaşması ilə valideynlərin və gənclərin etibar etdiyi nüfuzlu bir quruma çevrilmişdir. Bu səbəbdən də, ikinci filialımız 2011-ci ildən Bakı şəhərində fəaliyyətə başladı. Bu illər ərzində biz yerli və beynəlxalq təhsil istiqamətləri üzrə uğurlu nəticələr əldə etmiş, onlarla tələbənin ali məktəblərə və xaricdə təhsilə qəbuluna nail olmuşuq.',
@@ -2535,6 +2632,8 @@
         pr_countries: 'Target countries',
         pr_next_consult: 'Upcoming consultation',
         lang_section: 'Language',
+        appearance_section: 'Appearance',
+        dark_mode_label: 'Dark mode',
         edit_profile: 'Edit profile',
         logout: 'Log out',
         onb_back: '← Back',
@@ -2573,8 +2672,19 @@
         notif_announcement_title: 'Announcement',
         notif_confirmed_title: 'Your meeting is confirmed',
         notif_confirmed_tpl: 'You will meet with {advisor} on {date} at {time}',
+        parent_view_eyebrow: 'Parent view',
+        parent_view_loading: 'Loading...',
+        parent_view_invalid_title: 'Link is invalid',
+        parent_view_invalid_sub: 'This link is no longer active or has been revoked. Please contact the centre.',
+        parent_view_docs: 'Document progress',
+        parent_view_doc_tpl: '{done}/{total} documents ready',
+        parent_view_countries: 'Target countries',
+        parent_view_consult: 'Next consultation',
+        parent_view_footer: 'This is a read-only view shared by Bilik Education Centre.',
+        parent_view_none: 'Not selected yet',
         notif_reminder_title: 'Upcoming meeting',
         notif_reminder_hours_tpl: '{hours}h left',
+        notif_exam_title: 'Your exam result was added',
         close: 'Close',
         // About us
         abt_center_desc: 'Bilik Education Centre has been operating in Sumgait since 2007. To this day it has stood beside hundreds of pupils and students on their path to success. Built on quality, results and trust in education, our centre has become a name that parents and young people rely on. That is why our second branch opened in Baku in 2011. Over the years we have achieved strong results in local and international education, helping dozens of students gain admission to universities and study abroad.',
@@ -2741,6 +2851,8 @@
         pr_countries: 'Целевые страны',
         pr_next_consult: 'Предстоящая консультация',
         lang_section: 'Выбор языка',
+        appearance_section: 'Внешний вид',
+        dark_mode_label: 'Тёмная тема',
         edit_profile: 'Редактировать профиль',
         logout: 'Выйти',
         onb_back: '← Назад',
@@ -2779,8 +2891,19 @@
         notif_announcement_title: 'Объявление центра',
         notif_confirmed_title: 'Ваша встреча подтверждена',
         notif_confirmed_tpl: 'Вы встретитесь с {advisor} {date} в {time}',
+        parent_view_eyebrow: 'Вид для родителей',
+        parent_view_loading: 'Загрузка...',
+        parent_view_invalid_title: 'Ссылка недействительна',
+        parent_view_invalid_sub: 'Эта ссылка больше не активна или отозвана. Свяжитесь с центром.',
+        parent_view_docs: 'Прогресс по документам',
+        parent_view_doc_tpl: 'Готово {done}/{total} документов',
+        parent_view_countries: 'Целевые страны',
+        parent_view_consult: 'Следующая консультация',
+        parent_view_footer: 'Это доступный только для чтения вид, предоставленный центром Bilik.',
+        parent_view_none: 'Пока не выбрано',
         notif_reminder_title: 'Скоро встреча',
         notif_reminder_hours_tpl: 'осталось {hours} ч.',
+        notif_exam_title: 'Добавлен результат вашего экзамена',
         close: 'Закрыть',
         // About us
         abt_center_desc: 'Учебный центр Bilik работает в Сумгаите с 2007 года. За это время он стал опорой для сотен учеников и студентов на пути к успеху. Благодаря подходу, основанному на качестве, результате и доверии, центр стал авторитетным учреждением, которому доверяют родители и молодёжь. Поэтому в 2011 году в Баку открылся второй филиал. За эти годы центр добился успешных результатов в местном и международном образовании, помогая десяткам студентов поступать в вузы и учиться за рубежом.',
@@ -2947,6 +3070,8 @@
         pr_countries: 'Hedef ülkeler',
         pr_next_consult: 'Yaklaşan danışmanlık',
         lang_section: 'Dil seçimi',
+        appearance_section: 'Görünüm',
+        dark_mode_label: 'Karanlık mod',
         edit_profile: 'Profili düzenle',
         logout: 'Çıkış yap',
         onb_back: '← Geri',
@@ -2985,8 +3110,19 @@
         notif_announcement_title: 'Merkezden duyuru',
         notif_confirmed_title: 'Görüşmeniz onaylandı',
         notif_confirmed_tpl: '{date} tarihinde saat {time}\'de {advisor} ile görüşeceksiniz',
+        parent_view_eyebrow: 'Veli görünümü',
+        parent_view_loading: 'Yükleniyor...',
+        parent_view_invalid_title: 'Bağlantı geçersiz',
+        parent_view_invalid_sub: 'Bu bağlantı artık aktif değil veya iptal edildi. Merkezle iletişime geçin.',
+        parent_view_docs: 'Belge ilerlemesi',
+        parent_view_doc_tpl: '{done}/{total} belge hazır',
+        parent_view_countries: 'Hedef ülkeler',
+        parent_view_consult: 'Sonraki danışmanlık',
+        parent_view_footer: 'Bu, Bilik Eğitim Merkezi tarafından paylaşılan salt okunur bir görünümdür.',
+        parent_view_none: 'Henüz seçilmedi',
         notif_reminder_title: 'Yaklaşan görüşme',
         notif_reminder_hours_tpl: '{hours} saat kaldı',
+        notif_exam_title: 'Sınav sonucunuz eklendi',
         close: 'Kapat',
         // About us
         abt_center_desc: 'Bilik Eğitim Merkezi 2007 yılından bu yana Sumgayıt şehrinde faaliyet göstermektedir. Bugüne kadar yüzlerce öğrenci ve üniversite adayının başarı yolunda yanında olmuştur. Eğitimde kaliteye, sonuca ve güvene dayalı yaklaşımıyla, ailelerin ve gençlerin güvendiği köklü bir kurum haline gelmiştir. Bu nedenle 2011 yılından itibaren ikinci şubemiz Bakü\'de faaliyete başlamıştır. Bu yıllar boyunca yerel ve uluslararası eğitim alanlarında başarılı sonuçlar elde ederek onlarca öğrencinin üniversiteye ve yurt dışında eğitime kabulünü sağlamışızdır.',
@@ -3166,6 +3302,48 @@
     if (currentLang && currentLang !== 'az') {
       applyLanguage(currentLang);
     }
+
+    /* ═══════════════════════════════════════════════════════════
+       QARANLIQ REJİM
+       ──────────────────────────────────────────────────────────
+       Seçim localStorage-da saxlanılır. Heç nə seçilməyibsə, cihazın
+       öz sistem tərcihinə (prefers-color-scheme) əməl olunur — bax:
+       styles.css-dəki @media bloku. Buradakı JS yalnız istifadəçi
+       əl ilə dəyişəndə html.dark-theme/.light-theme class-ını qoyur.
+    ═══════════════════════════════════════════════════════════ */
+    function applyThemeToggleUI(isDark) {
+      const btn = document.getElementById('theme-toggle-btn');
+      const knob = document.getElementById('theme-toggle-knob');
+      if (!btn || !knob) return;
+      btn.setAttribute('aria-checked', isDark ? 'true' : 'false');
+      btn.style.background = isDark ? 'var(--teal)' : 'var(--surface-2)';
+      knob.style.transform = isDark ? 'translateX(20px)' : 'translateX(0)';
+      knob.style.background = isDark ? '#fff' : 'var(--navy)';
+    }
+
+    function initTheme() {
+      let saved = null;
+      try { saved = localStorage.getItem('btm_theme'); } catch (e) { }
+      const root = document.documentElement;
+      root.classList.remove('dark-theme', 'light-theme');
+      if (saved === 'dark') root.classList.add('dark-theme');
+      else if (saved === 'light') root.classList.add('light-theme');
+      // saved === null → heç nə əlavə edilmir, @media prefers-color-scheme qərar verir
+      const isDark = saved === 'dark' || (!saved && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      applyThemeToggleUI(isDark);
+    }
+    initTheme();
+
+    document.getElementById('theme-toggle-btn')?.addEventListener('click', () => {
+      const root = document.documentElement;
+      const currentlyDark = root.classList.contains('dark-theme') ||
+        (!root.classList.contains('light-theme') && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      const next = currentlyDark ? 'light' : 'dark';
+      try { localStorage.setItem('btm_theme', next); } catch (e) { }
+      root.classList.remove('dark-theme', 'light-theme');
+      root.classList.add(next === 'dark' ? 'dark-theme' : 'light-theme');
+      applyThemeToggleUI(next === 'dark');
+    });
 
     /* ═══════════════════════════════════════════════════════════
        ADMIN PANELİ — TAM MƏNTİQ
@@ -3563,6 +3741,22 @@
 
       // Çap / PDF — brauzerin öz "PDF kimi saxla" pəncərəsini açır
       document.getElementById('modal-print-btn').onclick = () => printStudentProfile(student, rows);
+
+      // Valideyn üçün girişsiz, yalnız-oxu link yaradır
+      document.getElementById('modal-parent-link-btn').onclick = async () => {
+        if (!sb || !student.email) return;
+        const btn = document.getElementById('modal-parent-link-btn');
+        btn.disabled = true; btn.textContent = 'Yaradılır...';
+        const { data, error } = await sb.from('parent_links')
+          .insert({ student_email: student.email, created_by: currentEmail })
+          .select().single();
+        btn.disabled = false; btn.textContent = '🔗 Valideyn linki yarat';
+        if (error) { toast('Xəta: ' + error.message, true); return; }
+        const link = PRODUCTION_URL.replace(/\/$/, '') + '/?parent=' + data.token;
+        logAudit('Valideyn linki yaradıldı', student.email);
+        try { await navigator.clipboard.writeText(link); toast('✓ Link kopyalandı'); } catch (e) { /* clipboard əlçatmazdırsa səssizcə keç */ }
+        window.prompt('Valideynə göndəriləcək link (kopyalanıb, lazım olsa buradan da götürün):', link);
+      };
 
       openModal('student-modal');
     }
@@ -4049,6 +4243,7 @@
       else if (tabId === 'partner-unis') loadPartnerUnisAdmin();
       else if (tabId === 'services') loadServicesAdmin();
       else if (tabId === 'news') loadNewsAdmin();
+      else if (tabId === 'examresults') loadExamResultsAdmin();
       else if (tabId === 'analytics') loadAnalytics();
     }
 
@@ -4832,6 +5027,104 @@
       toast('✓ Xəbər əlavə edildi');
       loadNewsAdmin();
       loadNews();
+    });
+
+    /* ═══════════════════════════════════════════════════════════
+       ADMIN — SINAQ NƏTİCƏLƏRİ
+       Admin/staff bir tələbəni ad/email ilə axtarıb sınaq nəticəsi
+       əlavə edir; bu, avtomatik olaraq həmin tələbənin bildiriş
+       panelinə (fetchExamResults → buildNotifCache) düşür.
+    ═══════════════════════════════════════════════════════════ */
+    async function loadExamResultsAdmin() {
+      const listEl = document.getElementById('admin-examresults-list');
+      listEl.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line wide"></div><div class="skeleton skeleton-line narrow"></div></div>'.repeat(3);
+
+      if (!sb) { listEl.innerHTML = '<div class="admin-empty"><span class="empty-icon">⚠️</span>Supabase bağlantısı yoxdur.</div>'; return; }
+
+      profilesNameCache = null;
+      await loadProfilesCache();
+      const dl = document.getElementById('examresult-search-datalist');
+      if (dl && profilesNameCache) {
+        dl.innerHTML = Object.entries(profilesNameCache)
+          .filter(([email, name]) => name)
+          .map(([email, name]) => `<option value="${escapeHtml(name)} — ${escapeHtml(email)}">`)
+          .join('');
+      }
+
+      const { data, error } = await sb.from('exam_results')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) {
+        listEl.innerHTML = `
+          <div class="admin-empty" style="text-align:left; padding:16px;">
+            <span class="empty-icon">❌</span>
+            <b>Cədvəl tapılmadı</b><br>
+            <span style="font-size:12px; color:var(--ink-soft);">${escapeHtml(error.message)}</span><br><br>
+            <span style="font-size:11px; color:var(--ink-soft);">
+              <b>supabase-security-setup.sql</b> faylını Supabase → SQL Editor-da icra edin.</span>
+          </div>`;
+        return;
+      }
+
+      if (!data || !data.length) {
+        listEl.innerHTML = '<div class="admin-empty"><span class="empty-icon">📊</span>Hələ sınaq nəticəsi əlavə edilməyib.</div>';
+        return;
+      }
+
+      const card = document.createElement('div');
+      card.className = 'admin-card';
+      data.forEach(r => {
+        const studentName = (profilesNameCache && profilesNameCache[r.student_email]) || '';
+        const row = document.createElement('div');
+        row.className = 'admin-card-row';
+        row.innerHTML = `
+          <div class="admin-card-row-info">
+            <p class="admin-row-name">${escapeHtml(r.exam_name)} — ${escapeHtml(r.result_text)}</p>
+            <p class="admin-row-sub">${escapeHtml(studentName ? studentName + ' — ' + r.student_email : r.student_email)}${r.created_at ? ' · ' + new Date(r.created_at).toLocaleDateString('az-AZ') : ''}</p>
+          </div>
+          <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
+            <button class="admin-action-btn danger del-examresult" data-id="${r.id}">Sil</button>
+          </div>`;
+        card.appendChild(row);
+      });
+      listEl.innerHTML = '';
+      listEl.appendChild(card);
+
+      listEl.querySelectorAll('.del-examresult').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Bu sınaq nəticəsini silmək istədiyinizə əminsiniz?')) return;
+          await sb.from('exam_results').delete().eq('id', btn.dataset.id);
+          logAudit('Sınaq nəticəsi silindi', btn.dataset.id);
+          toast('✓ Silindi');
+          loadExamResultsAdmin();
+        });
+      });
+    }
+
+    document.getElementById('add-examresult-btn')?.addEventListener('click', async () => {
+      const raw = document.getElementById('new-examresult-search').value.trim();
+      const examName = document.getElementById('new-examresult-name').value.trim();
+      const resultText = document.getElementById('new-examresult-value').value.trim();
+      const email = extractEmailFromStaffInput(raw);
+      if (!email) { toast('Siyahıdan seçin və ya tam email yazın', true); return; }
+      if (!examName || !resultText) { toast('Sınaq adı və nəticəni yazın', true); return; }
+      if (!sb) return;
+
+      const btn = document.getElementById('add-examresult-btn');
+      btn.disabled = true; btn.textContent = '...';
+      const { error } = await sb.from('exam_results')
+        .insert({ student_email: email, exam_name: examName, result_text: resultText, created_by: currentEmail });
+      btn.disabled = false; btn.textContent = 'Əlavə et';
+
+      if (error) { toast('Xəta: ' + error.message, true); return; }
+      logAudit('Sınaq nəticəsi əlavə edildi', email, examName);
+      document.getElementById('new-examresult-search').value = '';
+      document.getElementById('new-examresult-name').value = '';
+      document.getElementById('new-examresult-value').value = '';
+      toast('✓ Sınaq nəticəsi əlavə edildi');
+      loadExamResultsAdmin();
     });
 
     /* ═══════════════════════════════════════════════════════════

@@ -229,6 +229,47 @@
       </div>
     </div>
 
+    <!-- ══════════════ VALİDEYN GÖRÜNÜŞÜ (giriş tələb etmir) ══════════════ -->
+    <div class="screen" id="parent-view">
+      <div style="text-align: center; margin: 8px 0 20px;">
+        <img src="logo.jpg" alt="Bilik Tədris Mərkəzi"
+          style="width: 64px; height: auto; border-radius: 10px; object-fit: contain;">
+        <p class="eyebrow" style="margin-top:8px;" data-i18n="parent_view_eyebrow">Valideyn görünüşü</p>
+        <h1 class="title" id="parent-view-name" style="font-size:20px;">—</h1>
+      </div>
+
+      <div id="parent-view-loading" style="text-align:center; padding:30px 0; color:var(--ink-soft); font-size:13px;" data-i18n="parent_view_loading">Yüklənir...</div>
+
+      <div id="parent-view-error" style="display:none; text-align:center; padding:30px 16px;">
+        <p style="font-size:28px; margin:0 0 8px;">🔒</p>
+        <p style="font-weight:600; margin:0 0 4px;" data-i18n="parent_view_invalid_title">Link etibarsızdır</p>
+        <p style="font-size:12.5px; color:var(--ink-soft); margin:0;" data-i18n="parent_view_invalid_sub">Bu link artıq aktiv deyil və ya ləğv edilib. Mərkəzlə əlaqə saxlayın.</p>
+      </div>
+
+      <div id="parent-view-content" style="display:none;">
+        <div class="card">
+          <p class="section-label" style="margin-bottom:0;" data-i18n="parent_view_docs">Sənəd irəliləyişi</p>
+          <p style="font-size:26px; font-weight:700; color:var(--teal); margin:6px 0 2px;" id="parent-view-doc-pct">0%</p>
+          <div class="progress-track">
+            <div class="progress-fill" id="parent-view-doc-fill" style="width:0%;"></div>
+          </div>
+          <p class="doc-due" id="parent-view-doc-detail" style="margin-top:8px;"></p>
+        </div>
+
+        <div class="card" style="margin-top:10px;">
+          <p class="section-label" style="margin-bottom:6px;" data-i18n="parent_view_countries">Hədəf ölkələr</p>
+          <p style="font-size:13px; color:var(--ink); margin:0;" id="parent-view-countries">—</p>
+        </div>
+
+        <div class="card" style="margin-top:10px;">
+          <p class="section-label" style="margin-bottom:6px;" data-i18n="parent_view_consult">Növbəti konsultasiya</p>
+          <p style="font-size:13px; color:var(--ink); margin:0;" id="parent-view-consult">—</p>
+        </div>
+
+        <p style="text-align:center; font-size:11px; color:var(--ink-soft); margin-top:20px;" data-i18n="parent_view_footer">Bu, yalnız-oxu görünüşdür — Bilik Tədris Mərkəzi tərəfindən paylaşılıb.</p>
+      </div>
+    </div>
+
     <!-- ══════════════ HOME ══════════════ -->
     <div class="screen" id="home">
       <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
@@ -609,8 +650,19 @@
             style="flex:1; padding: 10px 0; border-radius: 10px; border: 1.5px solid var(--line); background: #fff; color: var(--ink-soft); font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .2s;">🇷🇺
             RU</button>
           <button class="lang-btn" data-lang="tr"
-            style="flex:1; padding: 10px 0; border-radius: 10px; border: 1.5px solid var(--line); background: #fff; color: var(--ink-soft); font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .2s;">🇹🇷
+            style="flex:1; padding: 10px 0; border-radius: 10px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink-soft); font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .2s;">🇹🇷
             TR</button>
+        </div>
+      </div>
+      <p class="section-label" data-i18n="appearance_section">Görünüş</p>
+      <div class="card" style="padding: 10px 14px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <span style="font-size: 13px; color: var(--ink);" data-i18n="dark_mode_label">Qaranlıq rejim</span>
+          <button id="theme-toggle-btn" role="switch" aria-checked="false"
+            style="position:relative; width:46px; height:26px; border-radius:100px; border:1.5px solid var(--line); background:var(--surface-2); cursor:pointer; padding:0; flex-shrink:0;">
+            <span id="theme-toggle-knob"
+              style="position:absolute; top:2px; left:2px; width:19px; height:19px; border-radius:50%; background:var(--navy); transition: transform .2s;"></span>
+          </button>
         </div>
       </div>
       <button class="btn ghost" id="profile-edit-btn" data-i18n="edit_profile">Profili redaktə et</button>
@@ -1099,6 +1151,31 @@
           <div id="admin-news-list"></div>
         </div>
 
+        <!-- ── SINAQ NƏTİCƏLƏRİ ── -->
+        <div class="admin-panel" id="admin-panel-examresults">
+          <p class="admin-section-title">Sınaq nəticəsi əlavə et</p>
+          <div class="admin-card" style="padding:14px; margin-bottom:14px;">
+            <div class="admin-field">
+              <label>Tələbə (ad, soyad və ya email ilə axtar)</label>
+              <input type="text" id="new-examresult-search" list="examresult-search-datalist" autocomplete="off" placeholder="məs. Leyla Məmmədova və ya leyla@biliktedris.az">
+              <datalist id="examresult-search-datalist"></datalist>
+            </div>
+            <div class="admin-field">
+              <label>Sınaq adı</label>
+              <input type="text" id="new-examresult-name" placeholder="məs. IELTS Sınaq #2 və ya DİM Sınaq">
+            </div>
+            <div class="admin-field">
+              <label>Nəticə</label>
+              <input type="text" id="new-examresult-value" placeholder="məs. 6.5 band və ya 78/100">
+            </div>
+            <div class="admin-confirm-row">
+              <button class="admin-btn-primary" id="add-examresult-btn">Əlavə et</button>
+            </div>
+          </div>
+          <p class="admin-section-title">Son əlavə edilən nəticələr</p>
+          <div id="admin-examresults-list"></div>
+        </div>
+
         <!-- ── ANALİTİKA ── -->
         <div class="admin-panel" id="admin-panel-analytics">
           <p class="admin-section-title">Ümumi göstəricilər</p>
@@ -1181,6 +1258,9 @@
         </button>
         <button class="admin-more-row" id="admin-more-news" data-admin-tab="news">
           <span class="ic">📰</span> Elanlar / Xəbərlər
+        </button>
+        <button class="admin-more-row" id="admin-more-examresults" data-admin-tab="examresults">
+          <span class="ic">📊</span> Sınaq nəticələri
         </button>
         <button class="admin-more-row" id="admin-more-analytics" data-admin-tab="analytics">
           <span class="ic">📈</span> Analitika
@@ -1300,6 +1380,8 @@
             Email göndər</a>
           <button class="admin-btn-primary" style="flex:1; padding:10px; border-radius:10px; border:none; font-family:'Inter',sans-serif; font-size:13px; font-weight:500; cursor:pointer;"
             id="modal-print-btn">🖨️ PDF / Çap</button>
+          <button class="admin-btn-ghost" style="flex:1 1 100%; border:1px solid var(--line); padding:10px; border-radius:10px; font-family:'Inter',sans-serif; font-size:13px; cursor:pointer;"
+            id="modal-parent-link-btn">🔗 Valideyn linki yarat</button>
           <button class="admin-btn-ghost" style="flex:1 1 100%; border:1px solid var(--line); padding:10px; border-radius:10px; font-family:'Inter',sans-serif; font-size:13px; cursor:pointer;"
             id="modal-close-btn">Bağla</button>
         </div>
