@@ -1,4 +1,20 @@
     /* ═══════════════════════════════════════════════════════════
+       SENTRY — xəta izləmə
+       ──────────────────────────────────────────────────────────
+       Sayt canlıda xəta versə, sentry.io-dakı layihəyə avtomatik
+       bildiriş gəlir. Tracing/session-replay bilərəkdən söndürülüb —
+       tələbələrin ekranı qeyd edilmir, yalnız xəta mətni göndərilir.
+    ═══════════════════════════════════════════════════════════ */
+    if (typeof Sentry !== 'undefined') {
+      Sentry.init({
+        dsn: 'https://d77ee3c8be4d6081aa6a6d0c069e1779@o4511930865614848.ingest.us.sentry.io/4511930889338880',
+        tracesSampleRate: 0,
+        replaysSessionSampleRate: 0,
+        replaysOnErrorSampleRate: 0
+      });
+    }
+
+    /* ═══════════════════════════════════════════════════════════
        SUPABASE KONFİQURASİYASI
        ──────────────────────────────────────────────────────────
        supabase.com → layihəni aç → Settings → API
