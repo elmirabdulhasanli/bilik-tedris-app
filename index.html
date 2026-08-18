@@ -367,48 +367,13 @@
             düşünən, tətbiq edən və gələcəyə inamla addımlayan fərdlərə çevirməkdir.</p>
         </div>
 
-        <!-- Xidmətlər -->
+        <!-- Xidmətlər — bazadan idarə olunur (admin/staff) -->
         <div class="card" style="margin-top: 10px;">
           <p style="font-weight: 600; font-size: 14px; margin: 0 0 10px; display: flex; align-items: center; gap: 6px;">
             <span style="font-size: 16px;">📚</span><span data-i18n="abt_services_title">Təklif etdiyimiz xidmətlər</span>
           </p>
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            <div
-              style="display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5;">
-              <span style="color: var(--teal); font-weight: 600; flex-shrink: 0;">•</span>
-              <span data-i18n="abt_svc_1">Abituriyent hazırlığı (DİM, buraxılış, qəbul imtahanları)</span>
-            </div>
-            <div
-              style="display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5;">
-              <span style="color: var(--teal); font-weight: 600; flex-shrink: 0;">•</span>
-              <span data-i18n="abt_svc_2">YÖS və SAT imtahanlarına hazırlıq</span>
-            </div>
-            <div
-              style="display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5;">
-              <span style="color: var(--teal); font-weight: 600; flex-shrink: 0;">•</span>
-              <span data-i18n="abt_svc_3">Ümumi ingilis dili üzrə kurslar</span>
-            </div>
-            <div
-              style="display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5;">
-              <span style="color: var(--teal); font-weight: 600; flex-shrink: 0;">•</span>
-              <span data-i18n="abt_svc_4">Beynəlxalq sertifikasiya imtahanlarına hazırlıq (TOEFL, IELTS, GRE, GMAT)</span>
-            </div>
-            <div
-              style="display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5;">
-              <span style="color: var(--teal); font-weight: 600; flex-shrink: 0;">•</span>
-              <span data-i18n="abt_svc_5">Riyaziyyat və informatika dərsləri (o cümlədən olimpiada hazırlığı)</span>
-            </div>
-            <div
-              style="display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5;">
-              <span style="color: var(--teal); font-weight: 600; flex-shrink: 0;">•</span>
-              <span data-i18n="abt_svc_6">Xaricdə təhsil üzrə konsultasiya və qeydiyyat</span>
-            </div>
-            <div
-              style="display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5;">
-              <span style="color: var(--teal); font-weight: 600; flex-shrink: 0;">•</span>
-              <span data-i18n="abt_svc_7">Ali riyaziyyat və fizika fənləri üzrə dərslər (tələbələr üçün)</span>
-            </div>
-          </div>
+          <div id="services-list" style="display: flex; flex-direction: column; gap: 10px;"></div>
+          <p id="services-empty" class="doc-due" style="display:none; text-align:center; padding:8px 0 0; margin:0;" data-i18n="services_empty">Hələ xidmət əlavə olunmayıb.</p>
         </div>
 
         <!-- Müəllim heyəti -->
@@ -420,6 +385,24 @@
             Bilik Tədris Mərkəzində yalnız peşəkar, təcrübəli və ixtisaslı müəllimlər fəaliyyət göstərir. Hər müəllim öz
             sahəsində müasir tədris metodlarını tətbiq edir və hər bir şagirdə fərdi yanaşma göstərir. Müəllimlərimiz
             həm akademik bilik, həm də psixoloji yanaşma baxımından öyrənməyə motivasiya yaradır.</p>
+        </div>
+
+        <!-- Əməkdaşlarımız — komanda, bazadan idarə olunur (admin/staff) -->
+        <div class="card" style="margin-top: 10px;">
+          <p style="font-weight: 600; font-size: 14px; margin: 0 0 10px; display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 16px;">🧑‍🏫</span><span data-i18n="team_title">Əməkdaşlarımız</span>
+          </p>
+          <div id="team-list" style="display: flex; flex-direction: column; gap: 12px;"></div>
+          <p id="team-empty" class="doc-due" style="display:none; text-align:center; padding:8px 0 0; margin:0;" data-i18n="team_empty">Hələ əməkdaş əlavə olunmayıb.</p>
+        </div>
+
+        <!-- Əməkdaş universitetlər — bazadan idarə olunur (admin/staff) -->
+        <div class="card" style="margin-top: 10px;">
+          <p style="font-weight: 600; font-size: 14px; margin: 0 0 10px; display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 16px;">🤝</span><span data-i18n="partner_unis_title">Əməkdaş universitetlər</span>
+          </p>
+          <div id="partner-unis-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+          <p id="partner-unis-empty" class="doc-due" style="display:none; text-align:center; padding:8px 0 0; margin:0;" data-i18n="partner_unis_empty">Hələ əməkdaş universitet əlavə olunmayıb.</p>
         </div>
 
         <!-- Uğurlarımız -->
@@ -1056,6 +1039,85 @@
           <div id="admin-achievements-list"></div>
         </div>
 
+        <!-- ── ƏMƏKDAŞLARIMIZ (komanda) ── -->
+        <div class="admin-panel" id="admin-panel-team">
+          <p class="admin-section-title">Əməkdaşlarımız</p>
+          <div class="admin-card" style="padding:14px; margin-bottom:14px;">
+            <p style="font-weight:600; font-size:13px; margin:0 0 10px; color:var(--navy);">➕ Yeni əməkdaş əlavə et</p>
+            <div class="admin-field">
+              <label>Şəkil (istəyə bağlı)</label>
+              <input type="file" id="new-team-file" accept="image/*">
+            </div>
+            <div class="admin-field">
+              <label>Ad Soyad</label>
+              <input type="text" id="new-team-name" placeholder="məs. Şəfəq Babayeva">
+            </div>
+            <div class="admin-field">
+              <label>Vəzifə</label>
+              <input type="text" id="new-team-title" placeholder="məs. İngilis dili müəllimi">
+            </div>
+            <div class="admin-field">
+              <label>Sıra nömrəsi</label>
+              <input type="number" id="new-team-order" value="0" min="0">
+            </div>
+            <div class="admin-confirm-row">
+              <button class="admin-btn-primary" id="add-team-btn">Əlavə et</button>
+            </div>
+          </div>
+          <p class="admin-section-title">Mövcud əməkdaşlar</p>
+          <div id="admin-team-list"></div>
+        </div>
+
+        <!-- ── ƏMƏKDAŞ UNİVERSİTETLƏR ── -->
+        <div class="admin-panel" id="admin-panel-partner-unis">
+          <p class="admin-section-title">Əməkdaş universitetlər</p>
+          <div class="admin-card" style="padding:14px; margin-bottom:14px;">
+            <p style="font-weight:600; font-size:13px; margin:0 0 10px; color:var(--navy);">➕ Yeni əməkdaş universitet əlavə et</p>
+            <div class="admin-field">
+              <label>Universitetin adı</label>
+              <input type="text" id="new-partner-uni-name" placeholder="məs. Beykoz Üniversitesi">
+            </div>
+            <div class="admin-field">
+              <label>Ölkə</label>
+              <input type="text" id="new-partner-uni-country" placeholder="məs. Türkiyə">
+            </div>
+            <div class="admin-field">
+              <label>Sıra nömrəsi</label>
+              <input type="number" id="new-partner-uni-order" value="0" min="0">
+            </div>
+            <div class="admin-confirm-row">
+              <button class="admin-btn-primary" id="add-partner-uni-btn">Əlavə et</button>
+            </div>
+          </div>
+          <p class="admin-section-title">Mövcud əməkdaş universitetlər</p>
+          <div id="admin-partner-unis-list"></div>
+        </div>
+
+        <!-- ── XİDMƏTLƏRİMİZ ── -->
+        <div class="admin-panel" id="admin-panel-services">
+          <p class="admin-section-title">Xidmətlərimiz</p>
+          <div class="admin-card" style="padding:14px; margin-bottom:14px;">
+            <p style="font-weight:600; font-size:13px; margin:0 0 10px; color:var(--navy);">➕ Yeni xidmət əlavə et</p>
+            <div class="admin-field">
+              <label>Xidmətin adı</label>
+              <input type="text" id="new-service-name" placeholder="məs. Ümumi ingilis dili üzrə kurslar">
+            </div>
+            <div class="admin-field">
+              <label>Qiymət</label>
+              <input type="text" id="new-service-price" placeholder="məs. 80 AZN/ay və ya Sorğu üzrə">
+            </div>
+            <div class="admin-field">
+              <label>Sıra nömrəsi</label>
+              <input type="number" id="new-service-order" value="0" min="0">
+            </div>
+            <div class="admin-confirm-row">
+              <button class="admin-btn-primary" id="add-service-btn">Əlavə et</button>
+            </div>
+          </div>
+          <p class="admin-section-title">Mövcud xidmətlər</p>
+          <div id="admin-services-list"></div>
+        </div>
+
         <!-- ── ANALİTİKA ── -->
         <div class="admin-panel" id="admin-panel-analytics">
           <p class="admin-section-title">Ümumi göstəricilər</p>
@@ -1126,6 +1188,15 @@
         </button>
         <button class="admin-more-row" id="admin-more-achievements" data-admin-tab="achievements">
           <span class="ic">🏆</span> Nailiyyətlər
+        </button>
+        <button class="admin-more-row" id="admin-more-team" data-admin-tab="team">
+          <span class="ic">🧑‍🏫</span> Əməkdaşlarımız
+        </button>
+        <button class="admin-more-row" id="admin-more-partner-unis" data-admin-tab="partner-unis">
+          <span class="ic">🤝</span> Əməkdaş universitetlər
+        </button>
+        <button class="admin-more-row" id="admin-more-services" data-admin-tab="services">
+          <span class="ic">📚</span> Xidmətlərimiz
         </button>
         <button class="admin-more-row" id="admin-more-analytics" data-admin-tab="analytics">
           <span class="ic">📈</span> Analitika

@@ -383,14 +383,15 @@ create policy "universities_select_all"
   to authenticated
   using (true);
 
--- Yalnız admin dəyişə bilər — universitet kataloqu nadir dəyişən, mərkəzi
--- konfiqurasiyadır.
+-- Yenidən staff+admin-ə açıldı (əvvəllər admin-only edilmişdi) — istifadəçi
+-- universitet kataloqunun gündəlik idarəsinin staff-ın da işi olduğuna qərar verdi.
 drop policy if exists "universities_write_staff" on public.universities;
-create policy "universities_write_admin"
+drop policy if exists "universities_write_admin" on public.universities;
+create policy "universities_write_staff"
   on public.universities for all
   to authenticated
-  using (public.is_admin())
-  with check (public.is_admin());
+  using (public.is_staff_or_admin())
+  with check (public.is_staff_or_admin());
 
 
 -- ─── 10. ACHIEVEMENTS — "Nailiyyətlərimiz" bölməsi (Haqqımızda ekranı) ───
@@ -470,8 +471,128 @@ create policy "announcements_write_admin"
   with check (public.is_admin());
 
 
+-- ─── 12. TEAM_MEMBERS — "Əməkdaşlarımız" bölməsi (Haqqımızda ekranı) ─────
+-- Mərkəzin müəllim/məsləhətçi heyəti — ad, vəzifə, şəkil. Staff da idarə edə bilər.
+
+create table if not exists public.team_members (
+  id bigint generated always as identity primary key,
+  name text not null,
+  title text,
+  photo_url text,
+  sort_order int not null default 0,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+alter table public.team_members enable row level security;
+
+drop policy if exists "team_members_select_all" on public.team_members;
+create policy "team_members_select_all"
+  on public.team_members for select
+  to authenticated
+  using (true);
+
+drop policy if exists "team_members_write_staff" on public.team_members;
+create policy "team_members_write_staff"
+  on public.team_members for all
+  to authenticated
+  using (public.is_staff_or_admin())
+  with check (public.is_staff_or_admin());
+
+insert into storage.buckets (id, name, public)
+  values ('TeamPhotos', 'TeamPhotos', true)
+  on conflict (id) do update set public = true;
+
+drop policy if exists "teamphotos_bucket_select_all" on storage.objects;
+create policy "teamphotos_bucket_select_all"
+  on storage.objects for select
+  to public
+  using (bucket_id = 'TeamPhotos');
+
+drop policy if exists "teamphotos_bucket_write_staff" on storage.objects;
+create policy "teamphotos_bucket_write_staff"
+  on storage.objects for all
+  to authenticated
+  using (bucket_id = 'TeamPhotos' and public.is_staff_or_admin())
+  with check (bucket_id = 'TeamPhotos' and public.is_staff_or_admin());
+
+update storage.buckets set file_size_limit = 8388608 where id = 'TeamPhotos';
+
+
+-- ─── 13. PARTNER_UNIVERSITIES — "Əməkdaş universitetlər" siyahısı ────────
+-- Mərkəzin rəsmi əməkdaşlıq etdiyi universitetlər (bax: bilik.edu.az saytındakı
+-- "Universitetlərimiz" bölməsi) — ümumi universitet kataloqundan ayrı, kiçik siyahı.
+
+create table if not exists public.partner_universities (
+  id bigint generated always as identity primary key,
+  name text not null,
+  country text,
+  sort_order int not null default 0,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+alter table public.partner_universities enable row level security;
+
+drop policy if exists "partner_universities_select_all" on public.partner_universities;
+create policy "partner_universities_select_all"
+  on public.partner_universities for select
+  to authenticated
+  using (true);
+
+drop policy if exists "partner_universities_write_staff" on public.partner_universities;
+create policy "partner_universities_write_staff"
+  on public.partner_universities for all
+  to authenticated
+  using (public.is_staff_or_admin())
+  with check (public.is_staff_or_admin());
+
+
+-- ─── 14. SERVICES — "Xidmətlərimiz" siyahısı (qiymətlə) ──────────────────
+-- Əvvəllər index.html-də sabit yazılmış 7 xidmət artıq bazadan idarə olunur,
+-- qiymət sahəsi ilə birlikdə. Aşağıda həmin 7 xidmət başlanğıc olaraq köçürülür
+-- (təkrar icrada dublikat yaranmasın deyə cədvəl boşdursa yalnız bir dəfə).
+
+create table if not exists public.services (
+  id bigint generated always as identity primary key,
+  name text not null,
+  price_text text,
+  sort_order int not null default 0,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+alter table public.services enable row level security;
+
+drop policy if exists "services_select_all" on public.services;
+create policy "services_select_all"
+  on public.services for select
+  to authenticated
+  using (true);
+
+drop policy if exists "services_write_staff" on public.services;
+create policy "services_write_staff"
+  on public.services for all
+  to authenticated
+  using (public.is_staff_or_admin())
+  with check (public.is_staff_or_admin());
+
+insert into public.services (name, price_text, sort_order)
+select v.name, v.price_text, v.sort_order
+from (values
+  ('Abituriyent hazırlığı (DİM, buraxılış, qəbul imtahanları)', 'Sorğu üzrə', 0),
+  ('YÖS və SAT imtahanlarına hazırlıq', 'Sorğu üzrə', 1),
+  ('Ümumi ingilis dili üzrə kurslar', 'Sorğu üzrə', 2),
+  ('Beynəlxalq sertifikasiya imtahanlarına hazırlıq (TOEFL, IELTS, GRE, GMAT)', 'Sorğu üzrə', 3),
+  ('Riyaziyyat və informatika dərsləri (o cümlədən olimpiada hazırlığı)', 'Sorğu üzrə', 4),
+  ('Xaricdə təhsil üzrə konsultasiya və qeydiyyat', 'Sorğu üzrə', 5),
+  ('Ali riyaziyyat və fizika fənləri üzrə dərslər (tələbələr üçün)', 'Sorğu üzrə', 6)
+) as v(name, price_text, sort_order)
+where not exists (select 1 from public.services);
+
+
 -- ═══════════════════════════════════════════════════════════════════════
--- 12. SON ADDIM (ƏLLƏ, DİQQƏTLİ OLUN) — Bucket-i PUBLIC-dən PRIVATE-ə keçirin
+-- 15. SON ADDIM (ƏLLƏ, DİQQƏTLİ OLUN) — Bucket-i PUBLIC-dən PRIVATE-ə keçirin
 -- ───────────────────────────────────────────────────────────────────────
 -- Yuxarıdakı bütün policy-lər tətbiq olunub yoxlanmadan bunu icra ETMƏYİN.
 -- index.html artıq signed URL istifadə edir, ona görə bu addımdan sonra da

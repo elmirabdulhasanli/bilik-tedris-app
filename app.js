@@ -943,6 +943,90 @@
         </div>`).join('');
     }
 
+    async function loadServices() {
+      const listEl = document.getElementById('services-list');
+      const emptyEl = document.getElementById('services-empty');
+      if (!listEl || !sb) return;
+
+      const { data, error } = await sb.from('services')
+        .select('*')
+        .eq('active', true)
+        .order('sort_order', { ascending: true })
+        .order('id', { ascending: true });
+
+      if (error || !data || !data.length) {
+        listEl.innerHTML = '';
+        if (emptyEl) emptyEl.style.display = 'block';
+        return;
+      }
+      if (emptyEl) emptyEl.style.display = 'none';
+      listEl.innerHTML = data.map(s => `
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px; font-size:12.5px; color:var(--ink-soft); line-height:1.5;">
+          <div style="display:flex; align-items:flex-start; gap:8px; min-width:0;">
+            <span style="color:var(--teal); font-weight:600; flex-shrink:0;">•</span>
+            <span>${escapeHtml(s.name)}</span>
+          </div>
+          ${s.price_text ? `<span style="flex-shrink:0; background:var(--teal-bg); color:var(--teal); font-weight:600; font-size:11px; padding:2px 8px; border-radius:100px; white-space:nowrap;">${escapeHtml(s.price_text)}</span>` : ''}
+        </div>`).join('');
+    }
+
+    async function loadTeamMembers() {
+      const listEl = document.getElementById('team-list');
+      const emptyEl = document.getElementById('team-empty');
+      if (!listEl || !sb) return;
+
+      const { data, error } = await sb.from('team_members')
+        .select('*')
+        .eq('active', true)
+        .order('sort_order', { ascending: true })
+        .order('id', { ascending: true });
+
+      if (error || !data || !data.length) {
+        listEl.innerHTML = '';
+        if (emptyEl) emptyEl.style.display = 'block';
+        return;
+      }
+      if (emptyEl) emptyEl.style.display = 'none';
+      listEl.innerHTML = data.map(m => {
+        const initials = (m.name || '?').trim().split(/\s+/).map(w => w[0] || '').slice(0, 2).join('').toUpperCase();
+        const photo = m.photo_url
+          ? `<img src="${escapeHtml(m.photo_url)}" alt="${escapeHtml(m.name)}" style="width:44px; height:44px; border-radius:50%; object-fit:cover; flex-shrink:0;">`
+          : `<div style="width:44px; height:44px; border-radius:50%; background:var(--navy); color:var(--gold); display:flex; align-items:center; justify-content:center; font-family:'Fraunces',serif; font-weight:600; font-size:14px; flex-shrink:0;">${escapeHtml(initials)}</div>`;
+        return `
+        <div style="display:flex; align-items:center; gap:10px;">
+          ${photo}
+          <div style="min-width:0;">
+            <p style="font-size:13px; font-weight:600; color:var(--ink); margin:0;">${escapeHtml(m.name)}</p>
+            ${m.title ? `<p style="font-size:11.5px; color:var(--ink-soft); margin:1px 0 0;">${escapeHtml(m.title)}</p>` : ''}
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    async function loadPartnerUniversities() {
+      const listEl = document.getElementById('partner-unis-list');
+      const emptyEl = document.getElementById('partner-unis-empty');
+      if (!listEl || !sb) return;
+
+      const { data, error } = await sb.from('partner_universities')
+        .select('*')
+        .eq('active', true)
+        .order('sort_order', { ascending: true })
+        .order('id', { ascending: true });
+
+      if (error || !data || !data.length) {
+        listEl.innerHTML = '';
+        if (emptyEl) emptyEl.style.display = 'block';
+        return;
+      }
+      if (emptyEl) emptyEl.style.display = 'none';
+      listEl.innerHTML = data.map(u => `
+        <div style="display:flex; align-items:flex-start; gap:8px; font-size:12.5px; color:var(--ink-soft); line-height:1.5;">
+          <span style="color:var(--teal); font-weight:600; flex-shrink:0;">•</span>
+          <span><b style="color:var(--ink); font-weight:600;">${escapeHtml(u.name)}</b>${u.country ? ' — ' + escapeHtml(u.country) : ''}</span>
+        </div>`).join('');
+    }
+
     let selCountries = [], selUnis = [], selFields = [];
 
     function renderCountryChips() {
@@ -983,6 +1067,9 @@
     // Kataloqu bazadan yenilə (varsa) — səhifə açılışını bloklamadan
     loadUniversitiesFromDB();
     loadAchievements();
+    loadServices();
+    loadTeamMembers();
+    loadPartnerUniversities();
 
     async function restoreProfile(email) {
       if (!sb || !email) return;
@@ -2261,6 +2348,11 @@
         // Achievements admin section
         achievements_title: 'Nailiyyətlərimiz',
         achievements_empty: 'Hələ heç bir nailiyyət əlavə olunmayıb.',
+        services_empty: 'Hələ xidmət əlavə olunmayıb.',
+        team_title: 'Əməkdaşlarımız',
+        team_empty: 'Hələ əməkdaş əlavə olunmayıb.',
+        partner_unis_title: 'Əməkdaş universitetlər',
+        partner_unis_empty: 'Hələ əməkdaş universitet əlavə olunmayıb.',
         // Ev ekranı — "Növbəti addım" kartı
         ns_fill_profile_title: 'Profilini doldur',
         ns_fill_profile_sub: 'Ölkə, ixtisas və büdcəni qeyd et ki, sənə uyğun universitetləri göstərək.',
@@ -2449,6 +2541,11 @@
         abt_copyright: '© 2026 Bilik Education Centre. All rights reserved.',
         achievements_title: 'Our achievements',
         achievements_empty: 'No achievements have been added yet.',
+        services_empty: 'No services have been added yet.',
+        team_title: 'Our team',
+        team_empty: 'No team members have been added yet.',
+        partner_unis_title: 'Partner universities',
+        partner_unis_empty: 'No partner universities have been added yet.',
         ns_fill_profile_title: 'Fill your profile',
         ns_fill_profile_sub: 'Add your country, field and budget so we can show you matching universities.',
         ns_pick_unis_title: 'Pick universities',
@@ -2636,6 +2733,11 @@
         abt_copyright: '© 2026 Учебный центр Bilik. Все права защищены.',
         achievements_title: 'Наши достижения',
         achievements_empty: 'Пока не добавлено ни одного достижения.',
+        services_empty: 'Пока не добавлено ни одной услуги.',
+        team_title: 'Наша команда',
+        team_empty: 'Пока не добавлено ни одного сотрудника.',
+        partner_unis_title: 'Университеты-партнёры',
+        partner_unis_empty: 'Пока не добавлено ни одного университета-партнёра.',
         ns_fill_profile_title: 'Заполните профиль',
         ns_fill_profile_sub: 'Укажите страну, специальность и бюджет, чтобы мы показали подходящие университеты.',
         ns_pick_unis_title: 'Выберите университеты',
@@ -2823,6 +2925,11 @@
         abt_copyright: '© 2026 Bilik Eğitim Merkezi. Tüm hakları saklıdır.',
         achievements_title: 'Başarılarımız',
         achievements_empty: 'Henüz başarı eklenmedi.',
+        services_empty: 'Henüz hizmet eklenmedi.',
+        team_title: 'Ekibimiz',
+        team_empty: 'Henüz ekip üyesi eklenmedi.',
+        partner_unis_title: 'Ortak üniversiteler',
+        partner_unis_empty: 'Henüz ortak üniversite eklenmedi.',
         ns_fill_profile_title: 'Profilini doldur',
         ns_fill_profile_sub: 'Sana uygun üniversiteleri gösterebilmemiz için ülke, bölüm ve bütçeni belirt.',
         ns_pick_unis_title: 'Üniversite seç',
@@ -3031,9 +3138,9 @@
         role === 'admin' ? 'Admin' : 'İşçi';
 
       // Staff-a yalnız admin-ə aid sətirləri "Daha" menyusundan gizlə — İşçilər,
-      // Qeydiyyat (audit), Sənəd şablonları, Universitetlər, Elan göndər.
-      // Bunlar bütün tələbələrə təsir edən mərkəzi konfiqurasiya/həssas əməliyyatlardır.
-      const adminOnlyRowIds = ['admin-more-staff', 'admin-more-audit', 'admin-more-doctemplates', 'admin-more-universities', 'admin-more-announce'];
+      // Qeydiyyat (audit), Sənəd şablonları, Elan göndər. Universitetlər, Əməkdaşlarımız,
+      // Əməkdaş universitetlər və Xidmətlərimiz staff-a da açıqdır (gündəlik iş sayılır).
+      const adminOnlyRowIds = ['admin-more-staff', 'admin-more-audit', 'admin-more-doctemplates', 'admin-more-announce'];
       adminOnlyRowIds.forEach(id => {
         const row = document.getElementById(id);
         if (row) row.style.display = (role === 'admin') ? '' : 'none';
@@ -3842,6 +3949,9 @@
       else if (tabId === 'doctemplates') loadDocTemplatesAdmin();
       else if (tabId === 'universities') loadUniversitiesAdmin();
       else if (tabId === 'achievements') loadAchievementsAdmin();
+      else if (tabId === 'team') loadTeamAdmin();
+      else if (tabId === 'partner-unis') loadPartnerUnisAdmin();
+      else if (tabId === 'services') loadServicesAdmin();
       else if (tabId === 'analytics') loadAnalytics();
     }
 
@@ -4228,6 +4338,309 @@
       toast('✓ Nailiyyət əlavə edildi');
       loadAchievementsAdmin();
       loadAchievements();
+    });
+
+    /* ═══════════════════════════════════════════════════════════
+       ADMIN — ƏMƏKDAŞLARIMIZ (komanda)
+    ═══════════════════════════════════════════════════════════ */
+    async function loadTeamAdmin() {
+      const listEl = document.getElementById('admin-team-list');
+      listEl.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line wide"></div><div class="skeleton skeleton-line narrow"></div></div>'.repeat(3);
+
+      if (!sb) { listEl.innerHTML = '<div class="admin-empty"><span class="empty-icon">⚠️</span>Supabase bağlantısı yoxdur.</div>'; return; }
+
+      const { data, error } = await sb.from('team_members')
+        .select('*')
+        .order('sort_order', { ascending: true })
+        .order('id', { ascending: true });
+
+      if (error) {
+        listEl.innerHTML = `
+          <div class="admin-empty" style="text-align:left; padding:16px;">
+            <span class="empty-icon">❌</span>
+            <b>Cədvəl tapılmadı</b><br>
+            <span style="font-size:12px; color:var(--ink-soft);">${escapeHtml(error.message)}</span><br><br>
+            <span style="font-size:11px; color:var(--ink-soft);">
+              <b>supabase-security-setup.sql</b> faylını Supabase → SQL Editor-da icra edin.</span>
+          </div>`;
+        return;
+      }
+
+      if (!data || !data.length) {
+        listEl.innerHTML = '<div class="admin-empty"><span class="empty-icon">🧑‍🏫</span>Hələ əməkdaş əlavə olunmayıb.</div>';
+        return;
+      }
+
+      const card = document.createElement('div');
+      card.className = 'admin-card';
+      data.forEach(m => {
+        const row = document.createElement('div');
+        row.className = 'admin-card-row';
+        row.innerHTML = `
+          ${m.photo_url ? `<img src="${escapeHtml(m.photo_url)}" alt="" style="width:44px; height:44px; border-radius:50%; object-fit:cover; flex-shrink:0;">` : `<div style="width:44px; height:44px; border-radius:50%; background:var(--teal-bg); display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0;">🧑‍🏫</div>`}
+          <div class="admin-card-row-info">
+            <p class="admin-row-name">${escapeHtml(m.name)}${m.active ? '' : ' (gizli)'}</p>
+            <p class="admin-row-sub">${m.title ? escapeHtml(m.title) + ' · ' : ''}sıra ${m.sort_order}</p>
+          </div>
+          <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
+            <button class="admin-action-btn toggle-team" data-id="${m.id}" data-active="${m.active}">${m.active ? 'Gizlət' : 'Göstər'}</button>
+            <button class="admin-action-btn danger del-team" data-id="${m.id}">Sil</button>
+          </div>`;
+        card.appendChild(row);
+      });
+      listEl.innerHTML = '';
+      listEl.appendChild(card);
+
+      listEl.querySelectorAll('.toggle-team').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const newActive = btn.dataset.active !== 'true';
+          await sb.from('team_members').update({ active: newActive }).eq('id', btn.dataset.id);
+          logAudit('Əməkdaş dəyişdirildi', btn.dataset.id, newActive ? 'aktiv' : 'gizli');
+          toast('✓ Yeniləndi');
+          loadTeamAdmin();
+          loadTeamMembers();
+        });
+      });
+      listEl.querySelectorAll('.del-team').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Bu əməkdaşı silmək istədiyinizə əminsiniz?')) return;
+          await sb.from('team_members').delete().eq('id', btn.dataset.id);
+          logAudit('Əməkdaş silindi', btn.dataset.id);
+          toast('✓ Silindi');
+          loadTeamAdmin();
+          loadTeamMembers();
+        });
+      });
+    }
+
+    document.getElementById('add-team-btn')?.addEventListener('click', async () => {
+      const fileInp = document.getElementById('new-team-file');
+      const name = document.getElementById('new-team-name').value.trim();
+      const title = document.getElementById('new-team-title').value.trim();
+      const order = parseInt(document.getElementById('new-team-order').value, 10) || 0;
+      const file = fileInp.files && fileInp.files[0];
+
+      if (!name) { toast('Ad Soyad yazın', true); return; }
+      if (!sb) return;
+
+      const btn = document.getElementById('add-team-btn');
+      btn.disabled = true; btn.textContent = 'Əlavə edilir...';
+
+      let photoUrl = null;
+      if (file) {
+        const MAX_UPLOAD_MB = 8;
+        if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+          toast(`Şəkil çox böyükdür (maks. ${MAX_UPLOAD_MB}MB).`, true);
+          btn.disabled = false; btn.textContent = 'Əlavə et';
+          return;
+        }
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${fileExt}`;
+        const { error: upErr } = await sb.storage.from('TeamPhotos').upload(fileName, file);
+        if (upErr) {
+          toast('Xəta: ' + upErr.message, true);
+          btn.disabled = false; btn.textContent = 'Əlavə et';
+          return;
+        }
+        const { data: pub } = sb.storage.from('TeamPhotos').getPublicUrl(fileName);
+        photoUrl = pub.publicUrl;
+      }
+
+      const { error } = await sb.from('team_members')
+        .insert({ name, title: title || null, photo_url: photoUrl, sort_order: order, active: true });
+
+      btn.disabled = false; btn.textContent = 'Əlavə et';
+
+      if (error) { toast('Xəta: ' + error.message, true); return; }
+      logAudit('Əməkdaş əlavə edildi', name);
+      fileInp.value = '';
+      document.getElementById('new-team-name').value = '';
+      document.getElementById('new-team-title').value = '';
+      toast('✓ Əməkdaş əlavə edildi');
+      loadTeamAdmin();
+      loadTeamMembers();
+    });
+
+    /* ═══════════════════════════════════════════════════════════
+       ADMIN — ƏMƏKDAŞ UNİVERSİTETLƏR
+    ═══════════════════════════════════════════════════════════ */
+    async function loadPartnerUnisAdmin() {
+      const listEl = document.getElementById('admin-partner-unis-list');
+      listEl.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line wide"></div><div class="skeleton skeleton-line narrow"></div></div>'.repeat(3);
+
+      if (!sb) { listEl.innerHTML = '<div class="admin-empty"><span class="empty-icon">⚠️</span>Supabase bağlantısı yoxdur.</div>'; return; }
+
+      const { data, error } = await sb.from('partner_universities')
+        .select('*')
+        .order('sort_order', { ascending: true })
+        .order('id', { ascending: true });
+
+      if (error) {
+        listEl.innerHTML = `
+          <div class="admin-empty" style="text-align:left; padding:16px;">
+            <span class="empty-icon">❌</span>
+            <b>Cədvəl tapılmadı</b><br>
+            <span style="font-size:12px; color:var(--ink-soft);">${escapeHtml(error.message)}</span><br><br>
+            <span style="font-size:11px; color:var(--ink-soft);">
+              <b>supabase-security-setup.sql</b> faylını Supabase → SQL Editor-da icra edin.</span>
+          </div>`;
+        return;
+      }
+
+      if (!data || !data.length) {
+        listEl.innerHTML = '<div class="admin-empty"><span class="empty-icon">🤝</span>Hələ əməkdaş universitet əlavə olunmayıb.</div>';
+        return;
+      }
+
+      const card = document.createElement('div');
+      card.className = 'admin-card';
+      data.forEach(u => {
+        const row = document.createElement('div');
+        row.className = 'admin-card-row';
+        row.innerHTML = `
+          <div class="admin-card-row-info">
+            <p class="admin-row-name">${escapeHtml(u.name)}${u.active ? '' : ' (gizli)'}</p>
+            <p class="admin-row-sub">${u.country ? escapeHtml(u.country) + ' · ' : ''}sıra ${u.sort_order}</p>
+          </div>
+          <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
+            <button class="admin-action-btn toggle-partner-uni" data-id="${u.id}" data-active="${u.active}">${u.active ? 'Gizlət' : 'Göstər'}</button>
+            <button class="admin-action-btn danger del-partner-uni" data-id="${u.id}">Sil</button>
+          </div>`;
+        card.appendChild(row);
+      });
+      listEl.innerHTML = '';
+      listEl.appendChild(card);
+
+      listEl.querySelectorAll('.toggle-partner-uni').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const newActive = btn.dataset.active !== 'true';
+          await sb.from('partner_universities').update({ active: newActive }).eq('id', btn.dataset.id);
+          logAudit('Əməkdaş universitet dəyişdirildi', btn.dataset.id, newActive ? 'aktiv' : 'gizli');
+          toast('✓ Yeniləndi');
+          loadPartnerUnisAdmin();
+          loadPartnerUniversities();
+        });
+      });
+      listEl.querySelectorAll('.del-partner-uni').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Bu universiteti siyahıdan silmək istədiyinizə əminsiniz?')) return;
+          await sb.from('partner_universities').delete().eq('id', btn.dataset.id);
+          logAudit('Əməkdaş universitet silindi', btn.dataset.id);
+          toast('✓ Silindi');
+          loadPartnerUnisAdmin();
+          loadPartnerUniversities();
+        });
+      });
+    }
+
+    document.getElementById('add-partner-uni-btn')?.addEventListener('click', async () => {
+      const name = document.getElementById('new-partner-uni-name').value.trim();
+      const country = document.getElementById('new-partner-uni-country').value.trim();
+      const order = parseInt(document.getElementById('new-partner-uni-order').value, 10) || 0;
+      if (!name) { toast('Universitetin adını yazın', true); return; }
+      if (!sb) return;
+
+      const { error } = await sb.from('partner_universities')
+        .insert({ name, country: country || null, sort_order: order, active: true });
+
+      if (error) { toast('Xəta: ' + error.message, true); return; }
+      logAudit('Əməkdaş universitet əlavə edildi', name, country);
+      document.getElementById('new-partner-uni-name').value = '';
+      document.getElementById('new-partner-uni-country').value = '';
+      toast('✓ Universitet əlavə edildi');
+      loadPartnerUnisAdmin();
+      loadPartnerUniversities();
+    });
+
+    /* ═══════════════════════════════════════════════════════════
+       ADMIN — XİDMƏTLƏRİMİZ (qiymətlə)
+    ═══════════════════════════════════════════════════════════ */
+    async function loadServicesAdmin() {
+      const listEl = document.getElementById('admin-services-list');
+      listEl.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line wide"></div><div class="skeleton skeleton-line narrow"></div></div>'.repeat(3);
+
+      if (!sb) { listEl.innerHTML = '<div class="admin-empty"><span class="empty-icon">⚠️</span>Supabase bağlantısı yoxdur.</div>'; return; }
+
+      const { data, error } = await sb.from('services')
+        .select('*')
+        .order('sort_order', { ascending: true })
+        .order('id', { ascending: true });
+
+      if (error) {
+        listEl.innerHTML = `
+          <div class="admin-empty" style="text-align:left; padding:16px;">
+            <span class="empty-icon">❌</span>
+            <b>Cədvəl tapılmadı</b><br>
+            <span style="font-size:12px; color:var(--ink-soft);">${escapeHtml(error.message)}</span><br><br>
+            <span style="font-size:11px; color:var(--ink-soft);">
+              <b>supabase-security-setup.sql</b> faylını Supabase → SQL Editor-da icra edin.</span>
+          </div>`;
+        return;
+      }
+
+      if (!data || !data.length) {
+        listEl.innerHTML = '<div class="admin-empty"><span class="empty-icon">📚</span>Hələ xidmət əlavə olunmayıb.</div>';
+        return;
+      }
+
+      const card = document.createElement('div');
+      card.className = 'admin-card';
+      data.forEach(s => {
+        const row = document.createElement('div');
+        row.className = 'admin-card-row';
+        row.innerHTML = `
+          <div class="admin-card-row-info">
+            <p class="admin-row-name">${escapeHtml(s.name)}${s.active ? '' : ' (gizli)'}</p>
+            <p class="admin-row-sub">${s.price_text ? escapeHtml(s.price_text) + ' · ' : ''}sıra ${s.sort_order}</p>
+          </div>
+          <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
+            <button class="admin-action-btn toggle-service" data-id="${s.id}" data-active="${s.active}">${s.active ? 'Gizlət' : 'Göstər'}</button>
+            <button class="admin-action-btn danger del-service" data-id="${s.id}">Sil</button>
+          </div>`;
+        card.appendChild(row);
+      });
+      listEl.innerHTML = '';
+      listEl.appendChild(card);
+
+      listEl.querySelectorAll('.toggle-service').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const newActive = btn.dataset.active !== 'true';
+          await sb.from('services').update({ active: newActive }).eq('id', btn.dataset.id);
+          logAudit('Xidmət dəyişdirildi', btn.dataset.id, newActive ? 'aktiv' : 'gizli');
+          toast('✓ Yeniləndi');
+          loadServicesAdmin();
+          loadServices();
+        });
+      });
+      listEl.querySelectorAll('.del-service').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Bu xidməti silmək istədiyinizə əminsiniz?')) return;
+          await sb.from('services').delete().eq('id', btn.dataset.id);
+          logAudit('Xidmət silindi', btn.dataset.id);
+          toast('✓ Silindi');
+          loadServicesAdmin();
+          loadServices();
+        });
+      });
+    }
+
+    document.getElementById('add-service-btn')?.addEventListener('click', async () => {
+      const name = document.getElementById('new-service-name').value.trim();
+      const price = document.getElementById('new-service-price').value.trim();
+      const order = parseInt(document.getElementById('new-service-order').value, 10) || 0;
+      if (!name) { toast('Xidmətin adını yazın', true); return; }
+      if (!sb) return;
+
+      const { error } = await sb.from('services')
+        .insert({ name, price_text: price || null, sort_order: order, active: true });
+
+      if (error) { toast('Xəta: ' + error.message, true); return; }
+      logAudit('Xidmət əlavə edildi', name, price);
+      document.getElementById('new-service-name').value = '';
+      document.getElementById('new-service-price').value = '';
+      toast('✓ Xidmət əlavə edildi');
+      loadServicesAdmin();
+      loadServices();
     });
 
     /* ═══════════════════════════════════════════════════════════
