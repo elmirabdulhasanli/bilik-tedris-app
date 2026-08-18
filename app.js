@@ -431,7 +431,9 @@
     [
       ['home-card-partner-unis', 'partner-unis-modal', loadPartnerUniversities],
       ['home-card-services', 'services-modal', loadServices],
-      ['home-card-achievements', 'achievements-modal', loadAchievements]
+      ['home-card-achievements', 'achievements-modal', loadAchievements],
+      ['home-card-team', 'team-modal', loadTeamMembers],
+      ['home-card-news', 'news-modal', loadNews]
     ].forEach(([cardId, modalId, loadFn]) => {
       document.getElementById(cardId)?.addEventListener('click', () => {
         openModal(modalId);
@@ -495,41 +497,12 @@
       });
     }
 
-    async function updateConsultantsDisplay() {
+    // Bütün məsləhətçilər hər tələbəyə (ölkə seçimindən asılı olmayaraq) göstərilir.
+    function updateConsultantsDisplay() {
       const farid = document.getElementById('consultant-farid');
       const ahmet = document.getElementById('consultant-ahmet');
-      if (!farid || !ahmet) return;
-
-      if (selCountries.length === 0 && sb && currentEmail) {
-        const { data } = await sb.from('profiles').select('target_countries').eq('email', currentEmail).limit(1);
-        if (data && data.length && data[0].target_countries) {
-          selCountries = data[0].target_countries;
-        }
-      }
-
-      if (selCountries.length === 0) {
-        farid.style.display = 'block';
-        ahmet.style.display = 'block';
-        return;
-      }
-
-      const ahmetCountries = ['Almaniya', 'İsveç', 'İtaliya', 'Polşa', 'Fransa', 'Niderland', 'Böyük Britaniya', 'ABŞ', 'Kanada', 'Çexiya', 'İspaniya', 'Avstriya', 'İsveçrə', 'Finlandiya', 'Norveç', 'Danimarka', 'Estoniya'];
-
-      let showFarid = false;
-      let showAhmet = false;
-
-      if (selCountries.length === 0) {
-        showFarid = true;
-        showAhmet = true;
-      } else {
-        selCountries.forEach(c => {
-          if (ahmetCountries.includes(c)) showAhmet = true;
-          else showFarid = true;
-        });
-      }
-
-      farid.style.display = showFarid ? 'block' : 'none';
-      ahmet.style.display = showAhmet ? 'block' : 'none';
+      if (farid) farid.style.display = 'block';
+      if (ahmet) ahmet.style.display = 'block';
     }
 
     /* ═══════════════════════════════════════════════════════════
@@ -2285,6 +2258,10 @@
         home_card_services_sub: 'Qiymətlə',
         home_card_achieve_title: 'Nailiyyətlər',
         home_card_achieve_sub: 'Uğurlarımız',
+        home_card_team_title: 'Komanda',
+        home_card_team_sub: 'Müəllimlər',
+        home_card_news_title: 'Xəbərlər',
+        home_card_news_sub: 'Elanlar',
         stat_unis: 'Seçilmiş universitet',
         stat_docs: 'Tamamlanmış sənəd',
         stat_consults: 'Planlaşan konsultasiya',
@@ -2498,6 +2475,10 @@
         home_card_services_sub: 'With pricing',
         home_card_achieve_title: 'Achievements',
         home_card_achieve_sub: 'Our success',
+        home_card_team_title: 'Team',
+        home_card_team_sub: 'Teachers',
+        home_card_news_title: 'News',
+        home_card_news_sub: 'Announcements',
         stat_unis: 'Selected university',
         stat_docs: 'Completed document',
         stat_consults: 'Planned consultation',
@@ -2700,6 +2681,10 @@
         home_card_services_sub: 'С ценами',
         home_card_achieve_title: 'Достижения',
         home_card_achieve_sub: 'Наши успехи',
+        home_card_team_title: 'Команда',
+        home_card_team_sub: 'Учителя',
+        home_card_news_title: 'Новости',
+        home_card_news_sub: 'Объявления',
         stat_unis: 'Выбранный университет',
         stat_docs: 'Завершённый документ',
         stat_consults: 'Запланир. консультация',
@@ -2902,6 +2887,10 @@
         home_card_services_sub: 'Fiyatlarla',
         home_card_achieve_title: 'Başarılar',
         home_card_achieve_sub: 'Başarılarımız',
+        home_card_team_title: 'Ekip',
+        home_card_team_sub: 'Öğretmenler',
+        home_card_news_title: 'Haberler',
+        home_card_news_sub: 'Duyurular',
         stat_unis: 'Seçilen üniversite',
         stat_docs: 'Tamamlanan belge',
         stat_consults: 'Planlanan danışmanlık',
