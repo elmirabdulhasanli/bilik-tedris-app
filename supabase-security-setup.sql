@@ -592,7 +592,38 @@ where not exists (select 1 from public.services);
 
 
 -- ═══════════════════════════════════════════════════════════════════════
--- 15. SON ADDIM (ƏLLƏ, DİQQƏTLİ OLUN) — Bucket-i PUBLIC-dən PRIVATE-ə keçirin
+-- ─── 15. NEWS_POSTS — "Xəbərlər" lenti (Haqqımızda ekranı) ───────────────
+-- DİQQƏT: bu, "announcements" cədvəlindən (bax: hissə 11) fərqlidir — o, admin-in
+-- bütün tələbələrə göndərdiyi ANLIQ bildirişdir (bell), bu isə hər kəsin About Us
+-- ekranında gördüyü, staff+admin-in idarə etdiyi ictimai XƏBƏR LENTİDİR.
+
+create table if not exists public.news_posts (
+  id bigint generated always as identity primary key,
+  title text not null,
+  body text,
+  sort_order int not null default 0,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+alter table public.news_posts enable row level security;
+
+drop policy if exists "news_posts_select_all" on public.news_posts;
+create policy "news_posts_select_all"
+  on public.news_posts for select
+  to authenticated
+  using (true);
+
+drop policy if exists "news_posts_write_staff" on public.news_posts;
+create policy "news_posts_write_staff"
+  on public.news_posts for all
+  to authenticated
+  using (public.is_staff_or_admin())
+  with check (public.is_staff_or_admin());
+
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- 16. SON ADDIM (ƏLLƏ, DİQQƏTLİ OLUN) — Bucket-i PUBLIC-dən PRIVATE-ə keçirin
 -- ───────────────────────────────────────────────────────────────────────
 -- Yuxarıdakı bütün policy-lər tətbiq olunub yoxlanmadan bunu icra ETMƏYİN.
 -- index.html artıq signed URL istifadə edir, ona görə bu addımdan sonra da

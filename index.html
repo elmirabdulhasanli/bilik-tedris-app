@@ -443,6 +443,15 @@
           <p id="achievements-empty" class="doc-due" style="display:none; text-align:center; padding:8px 0 0; margin:0;" data-i18n="achievements_empty">Hələ heç bir nailiyyət əlavə olunmayıb.</p>
         </div>
 
+        <!-- Elanlar/Xəbərlər — bazadan idarə olunur (admin/staff) -->
+        <div class="card" style="margin-top: 10px;">
+          <p style="font-weight: 600; font-size: 14px; margin: 0 0 10px; display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 16px;">📰</span><span data-i18n="news_title">Elanlar / Xəbərlər</span>
+          </p>
+          <div id="news-list" style="display: flex; flex-direction: column; gap: 12px;"></div>
+          <p id="news-empty" class="doc-due" style="display:none; text-align:center; padding:8px 0 0; margin:0;" data-i18n="news_empty">Hələ xəbər əlavə olunmayıb.</p>
+        </div>
+
         <!-- Niyə bizi seçirlər -->
         <div class="card" style="margin-top: 10px; background: var(--teal-bg); border: none;">
           <p style="font-weight: 600; font-size: 14px; margin: 0 0 10px; display: flex; align-items: center; gap: 6px;">
@@ -1118,6 +1127,32 @@
           <div id="admin-services-list"></div>
         </div>
 
+        <!-- ── ELANLAR/XƏBƏRLƏR ── -->
+        <div class="admin-panel" id="admin-panel-news">
+          <p class="admin-section-title">Elanlar / Xəbərlər</p>
+          <div class="admin-card" style="padding:14px; margin-bottom:14px;">
+            <p style="font-weight:600; font-size:13px; margin:0 0 10px; color:var(--navy);">➕ Yeni xəbər əlavə et</p>
+            <div class="admin-field">
+              <label>Başlıq</label>
+              <input type="text" id="new-news-title" placeholder="məs. Şampiyonlar Denemesi Nəticələri Açıqlandı">
+            </div>
+            <div class="admin-field">
+              <label>Mətn (istəyə bağlı)</label>
+              <textarea id="new-news-body" rows="3" placeholder="Qısa izah..."
+                style="width:100%; border:1px solid var(--line); border-radius:10px; padding:10px; font-family:'Inter',sans-serif; font-size:13px; color:var(--ink); resize:vertical;"></textarea>
+            </div>
+            <div class="admin-field">
+              <label>Sıra nömrəsi</label>
+              <input type="number" id="new-news-order" value="0" min="0">
+            </div>
+            <div class="admin-confirm-row">
+              <button class="admin-btn-primary" id="add-news-btn">Əlavə et</button>
+            </div>
+          </div>
+          <p class="admin-section-title">Mövcud xəbərlər</p>
+          <div id="admin-news-list"></div>
+        </div>
+
         <!-- ── ANALİTİKA ── -->
         <div class="admin-panel" id="admin-panel-analytics">
           <p class="admin-section-title">Ümumi göstəricilər</p>
@@ -1197,6 +1232,9 @@
         </button>
         <button class="admin-more-row" id="admin-more-services" data-admin-tab="services">
           <span class="ic">📚</span> Xidmətlərimiz
+        </button>
+        <button class="admin-more-row" id="admin-more-news" data-admin-tab="news">
+          <span class="ic">📰</span> Elanlar / Xəbərlər
         </button>
         <button class="admin-more-row" id="admin-more-analytics" data-admin-tab="analytics">
           <span class="ic">📈</span> Analitika

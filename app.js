@@ -1027,6 +1027,34 @@
         </div>`).join('');
     }
 
+    async function loadNews() {
+      const listEl = document.getElementById('news-list');
+      const emptyEl = document.getElementById('news-empty');
+      if (!listEl || !sb) return;
+
+      const { data, error } = await sb.from('news_posts')
+        .select('*')
+        .eq('active', true)
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: false });
+
+      if (error || !data || !data.length) {
+        listEl.innerHTML = '';
+        if (emptyEl) emptyEl.style.display = 'block';
+        return;
+      }
+      if (emptyEl) emptyEl.style.display = 'none';
+      listEl.innerHTML = data.map(n => {
+        const when = n.created_at ? new Date(n.created_at).toLocaleDateString('az-AZ') : '';
+        return `
+        <div style="border-left:3px solid var(--teal); padding-left:10px;">
+          <p style="font-size:13px; font-weight:600; color:var(--ink); margin:0;">${escapeHtml(n.title)}</p>
+          ${n.body ? `<p style="font-size:12px; color:var(--ink-soft); margin:3px 0 0; line-height:1.5;">${escapeHtml(n.body)}</p>` : ''}
+          ${when ? `<p style="font-size:10.5px; color:var(--ink-soft); margin:4px 0 0;">${escapeHtml(when)}</p>` : ''}
+        </div>`;
+      }).join('');
+    }
+
     let selCountries = [], selUnis = [], selFields = [];
 
     function renderCountryChips() {
@@ -1070,6 +1098,7 @@
     loadServices();
     loadTeamMembers();
     loadPartnerUniversities();
+    loadNews();
 
     async function restoreProfile(email) {
       if (!sb || !email) return;
@@ -2353,6 +2382,8 @@
         team_empty: 'Hələ əməkdaş əlavə olunmayıb.',
         partner_unis_title: 'Əməkdaş universitetlər',
         partner_unis_empty: 'Hələ əməkdaş universitet əlavə olunmayıb.',
+        news_title: 'Elanlar / Xəbərlər',
+        news_empty: 'Hələ xəbər əlavə olunmayıb.',
         // Ev ekranı — "Növbəti addım" kartı
         ns_fill_profile_title: 'Profilini doldur',
         ns_fill_profile_sub: 'Ölkə, ixtisas və büdcəni qeyd et ki, sənə uyğun universitetləri göstərək.',
@@ -2546,6 +2577,8 @@
         team_empty: 'No team members have been added yet.',
         partner_unis_title: 'Partner universities',
         partner_unis_empty: 'No partner universities have been added yet.',
+        news_title: 'Announcements / News',
+        news_empty: 'No news posted yet.',
         ns_fill_profile_title: 'Fill your profile',
         ns_fill_profile_sub: 'Add your country, field and budget so we can show you matching universities.',
         ns_pick_unis_title: 'Pick universities',
@@ -2738,6 +2771,8 @@
         team_empty: 'Пока не добавлено ни одного сотрудника.',
         partner_unis_title: 'Университеты-партнёры',
         partner_unis_empty: 'Пока не добавлено ни одного университета-партнёра.',
+        news_title: 'Объявления / Новости',
+        news_empty: 'Пока новостей нет.',
         ns_fill_profile_title: 'Заполните профиль',
         ns_fill_profile_sub: 'Укажите страну, специальность и бюджет, чтобы мы показали подходящие университеты.',
         ns_pick_unis_title: 'Выберите университеты',
@@ -2930,6 +2965,8 @@
         team_empty: 'Henüz ekip üyesi eklenmedi.',
         partner_unis_title: 'Ortak üniversiteler',
         partner_unis_empty: 'Henüz ortak üniversite eklenmedi.',
+        news_title: 'Duyurular / Haberler',
+        news_empty: 'Henüz haber eklenmedi.',
         ns_fill_profile_title: 'Profilini doldur',
         ns_fill_profile_sub: 'Sana uygun üniversiteleri gösterebilmemiz için ülke, bölüm ve bütçeni belirt.',
         ns_pick_unis_title: 'Üniversite seç',
@@ -3952,6 +3989,7 @@
       else if (tabId === 'team') loadTeamAdmin();
       else if (tabId === 'partner-unis') loadPartnerUnisAdmin();
       else if (tabId === 'services') loadServicesAdmin();
+      else if (tabId === 'news') loadNewsAdmin();
       else if (tabId === 'analytics') loadAnalytics();
     }
 
@@ -4641,6 +4679,100 @@
       toast('✓ Xidmət əlavə edildi');
       loadServicesAdmin();
       loadServices();
+    });
+
+    /* ═══════════════════════════════════════════════════════════
+       ADMIN — ELANLAR/XƏBƏRLƏR
+       DİQQƏT: bu, "Elan göndər" (bax: admin-more-announce, announcements
+       cədvəli) ilə eyni şey deyil — o, bell bildirişidir; bu isə hər kəsin
+       Haqqımızda ekranında gördüyü xəbər lentidir.
+    ═══════════════════════════════════════════════════════════ */
+    async function loadNewsAdmin() {
+      const listEl = document.getElementById('admin-news-list');
+      listEl.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line wide"></div><div class="skeleton skeleton-line narrow"></div></div>'.repeat(3);
+
+      if (!sb) { listEl.innerHTML = '<div class="admin-empty"><span class="empty-icon">⚠️</span>Supabase bağlantısı yoxdur.</div>'; return; }
+
+      const { data, error } = await sb.from('news_posts')
+        .select('*')
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        listEl.innerHTML = `
+          <div class="admin-empty" style="text-align:left; padding:16px;">
+            <span class="empty-icon">❌</span>
+            <b>Cədvəl tapılmadı</b><br>
+            <span style="font-size:12px; color:var(--ink-soft);">${escapeHtml(error.message)}</span><br><br>
+            <span style="font-size:11px; color:var(--ink-soft);">
+              <b>supabase-security-setup.sql</b> faylını Supabase → SQL Editor-da icra edin.</span>
+          </div>`;
+        return;
+      }
+
+      if (!data || !data.length) {
+        listEl.innerHTML = '<div class="admin-empty"><span class="empty-icon">📰</span>Hələ xəbər əlavə olunmayıb.</div>';
+        return;
+      }
+
+      const card = document.createElement('div');
+      card.className = 'admin-card';
+      data.forEach(n => {
+        const row = document.createElement('div');
+        row.className = 'admin-card-row';
+        row.innerHTML = `
+          <div class="admin-card-row-info">
+            <p class="admin-row-name">${escapeHtml(n.title)}${n.active ? '' : ' (gizli)'}</p>
+            <p class="admin-row-sub">${n.created_at ? new Date(n.created_at).toLocaleDateString('az-AZ') + ' · ' : ''}sıra ${n.sort_order}</p>
+          </div>
+          <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
+            <button class="admin-action-btn toggle-news" data-id="${n.id}" data-active="${n.active}">${n.active ? 'Gizlət' : 'Göstər'}</button>
+            <button class="admin-action-btn danger del-news" data-id="${n.id}">Sil</button>
+          </div>`;
+        card.appendChild(row);
+      });
+      listEl.innerHTML = '';
+      listEl.appendChild(card);
+
+      listEl.querySelectorAll('.toggle-news').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const newActive = btn.dataset.active !== 'true';
+          await sb.from('news_posts').update({ active: newActive }).eq('id', btn.dataset.id);
+          logAudit('Xəbər dəyişdirildi', btn.dataset.id, newActive ? 'aktiv' : 'gizli');
+          toast('✓ Yeniləndi');
+          loadNewsAdmin();
+          loadNews();
+        });
+      });
+      listEl.querySelectorAll('.del-news').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Bu xəbəri silmək istədiyinizə əminsiniz?')) return;
+          await sb.from('news_posts').delete().eq('id', btn.dataset.id);
+          logAudit('Xəbər silindi', btn.dataset.id);
+          toast('✓ Silindi');
+          loadNewsAdmin();
+          loadNews();
+        });
+      });
+    }
+
+    document.getElementById('add-news-btn')?.addEventListener('click', async () => {
+      const title = document.getElementById('new-news-title').value.trim();
+      const body = document.getElementById('new-news-body').value.trim();
+      const order = parseInt(document.getElementById('new-news-order').value, 10) || 0;
+      if (!title) { toast('Başlıq yazın', true); return; }
+      if (!sb) return;
+
+      const { error } = await sb.from('news_posts')
+        .insert({ title, body: body || null, sort_order: order, active: true });
+
+      if (error) { toast('Xəta: ' + error.message, true); return; }
+      logAudit('Xəbər əlavə edildi', title);
+      document.getElementById('new-news-title').value = '';
+      document.getElementById('new-news-body').value = '';
+      toast('✓ Xəbər əlavə edildi');
+      loadNewsAdmin();
+      loadNews();
     });
 
     /* ═══════════════════════════════════════════════════════════
