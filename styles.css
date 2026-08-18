@@ -19,47 +19,6 @@
       --body-bg: #E2E8F0;
     }
 
-    /* Qaranlıq rejim — Profil ekranındakı düymə ilə açılır, localStorage-da
-       saxlanılır. Cihazın öz sistem seçimi də (əlavə heç nə seçilməyibsə)
-       nəzərə alınır (bax: aşağıdakı prefers-color-scheme bloku). */
-    html.dark-theme {
-      --navy: #F8FAFC;
-      --navy-2: #E2E8F0;
-      --gold: #E8C468;
-      --gold-deep: #D4AF37;
-      --cream: #0B1120;
-      --teal: #60A5FA;
-      --teal-bg: #16233B;
-      --coral: #FB7185;
-      --coral-bg: #3A1620;
-      --ink: #E7EDF5;
-      --ink-soft: #93A3B8;
-      --line: #2A3B52;
-      --surface: #172133;
-      --surface-2: #1E2A3F;
-      --body-bg: #0B1120;
-    }
-
-    @media (prefers-color-scheme: dark) {
-      html:not(.light-theme):not(.dark-theme) {
-        --navy: #F8FAFC;
-        --navy-2: #E2E8F0;
-        --gold: #E8C468;
-        --gold-deep: #D4AF37;
-        --cream: #0B1120;
-        --teal: #60A5FA;
-        --teal-bg: #16233B;
-        --coral: #FB7185;
-        --coral-bg: #3A1620;
-        --ink: #E7EDF5;
-        --ink-soft: #93A3B8;
-        --line: #2A3B52;
-        --surface: #172133;
-        --surface-2: #1E2A3F;
-        --body-bg: #0B1120;
-      }
-    }
-
     * {
       box-sizing: border-box;
       /* Toxunanda mavi/boz "highlight" çərçivəsini söndürür — vebsayt deyil, tətbiq hissi */

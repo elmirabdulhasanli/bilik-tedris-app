@@ -2438,8 +2438,6 @@
         pr_countries: 'Hədəf ölkələr',
         pr_next_consult: 'Gələcək konsultasiya',
         lang_section: 'Dil seçimi',
-        appearance_section: 'Görünüş',
-        dark_mode_label: 'Qaranlıq rejim',
         edit_profile: 'Profili redaktə et',
         logout: 'Hesabdan çıx',
         // Onboarding
@@ -2665,8 +2663,6 @@
         pr_countries: 'Target countries',
         pr_next_consult: 'Upcoming consultation',
         lang_section: 'Language',
-        appearance_section: 'Appearance',
-        dark_mode_label: 'Dark mode',
         edit_profile: 'Edit profile',
         logout: 'Log out',
         onb_back: '← Back',
@@ -2886,8 +2882,6 @@
         pr_countries: 'Целевые страны',
         pr_next_consult: 'Предстоящая консультация',
         lang_section: 'Выбор языка',
-        appearance_section: 'Внешний вид',
-        dark_mode_label: 'Тёмная тема',
         edit_profile: 'Редактировать профиль',
         logout: 'Выйти',
         onb_back: '← Назад',
@@ -3107,8 +3101,6 @@
         pr_countries: 'Hedef ülkeler',
         pr_next_consult: 'Yaklaşan danışmanlık',
         lang_section: 'Dil seçimi',
-        appearance_section: 'Görünüm',
-        dark_mode_label: 'Karanlık mod',
         edit_profile: 'Profili düzenle',
         logout: 'Çıkış yap',
         onb_back: '← Geri',
@@ -3341,48 +3333,6 @@
     if (currentLang && currentLang !== 'az') {
       applyLanguage(currentLang);
     }
-
-    /* ═══════════════════════════════════════════════════════════
-       QARANLIQ REJİM
-       ──────────────────────────────────────────────────────────
-       Seçim localStorage-da saxlanılır. Heç nə seçilməyibsə, cihazın
-       öz sistem tərcihinə (prefers-color-scheme) əməl olunur — bax:
-       styles.css-dəki @media bloku. Buradakı JS yalnız istifadəçi
-       əl ilə dəyişəndə html.dark-theme/.light-theme class-ını qoyur.
-    ═══════════════════════════════════════════════════════════ */
-    function applyThemeToggleUI(isDark) {
-      const btn = document.getElementById('theme-toggle-btn');
-      const knob = document.getElementById('theme-toggle-knob');
-      if (!btn || !knob) return;
-      btn.setAttribute('aria-checked', isDark ? 'true' : 'false');
-      btn.style.background = isDark ? 'var(--teal)' : 'var(--surface-2)';
-      knob.style.transform = isDark ? 'translateX(20px)' : 'translateX(0)';
-      knob.style.background = isDark ? '#fff' : 'var(--navy)';
-    }
-
-    function initTheme() {
-      let saved = null;
-      try { saved = localStorage.getItem('btm_theme'); } catch (e) { }
-      const root = document.documentElement;
-      root.classList.remove('dark-theme', 'light-theme');
-      if (saved === 'dark') root.classList.add('dark-theme');
-      else if (saved === 'light') root.classList.add('light-theme');
-      // saved === null → heç nə əlavə edilmir, @media prefers-color-scheme qərar verir
-      const isDark = saved === 'dark' || (!saved && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-      applyThemeToggleUI(isDark);
-    }
-    initTheme();
-
-    document.getElementById('theme-toggle-btn')?.addEventListener('click', () => {
-      const root = document.documentElement;
-      const currentlyDark = root.classList.contains('dark-theme') ||
-        (!root.classList.contains('light-theme') && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-      const next = currentlyDark ? 'light' : 'dark';
-      try { localStorage.setItem('btm_theme', next); } catch (e) { }
-      root.classList.remove('dark-theme', 'light-theme');
-      root.classList.add(next === 'dark' ? 'dark-theme' : 'light-theme');
-      applyThemeToggleUI(next === 'dark');
-    });
 
     /* ═══════════════════════════════════════════════════════════
        ADMIN PANELİ — TAM MƏNTİQ
