@@ -5,7 +5,10 @@
        bildiriş gəlir. Tracing/session-replay bilərəkdən söndürülüb —
        tələbələrin ekranı qeyd edilmir, yalnız xəta mətni göndərilir.
     ═══════════════════════════════════════════════════════════ */
-    if (typeof Sentry !== 'undefined') {
+    // localhost/127.0.0.1-da (yerli test zamanı) baş verən xətalar canlı layihəyə
+    // getmesin deyə — yalnız əsl saytda (Netlify) init edilir.
+    const isLocalTestHost = /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
+    if (typeof Sentry !== 'undefined' && !isLocalTestHost) {
       Sentry.init({
         dsn: 'https://d77ee3c8be4d6081aa6a6d0c069e1779@o4511930865614848.ingest.us.sentry.io/4511930889338880',
         tracesSampleRate: 0,
