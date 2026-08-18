@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="az">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+  <title>BTM - Xaricdə Təhsil</title>
+  <meta name="description"
+    content="BTM - Azərbaycan gəncləri üçün xaricdə təhsil marşrutu. Universitet seçimindən viza sənədlərinə qədər bir yerdə.">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0F172A">
+  <link rel="icon" href="logo.png">
+  <link rel="apple-touch-icon" href="logo.png">
+
+  <!-- Telefona "əlavə et" edildikdə tam ekran (brauzer çərçivəsi olmadan) açılsın -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BTM">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap"
+    rel="stylesheet">
+
+  <!-- Supabase SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+  <!-- Toast bildirişi -->
+  <div id="toast"></div>
+
+  <!-- Tələbə profilinin çap/PDF görünüşü (yalnız çap zamanı görünür) -->
+  <div id="print-area" aria-hidden="true"></div>
+
+  <!-- Universitet müqayisəsi paneli -->
+  <div id="compare-bar">
+    <div class="cb-label"><b id="compare-bar-count">0</b> universitet seçilib</div>
+    <div class="cb-actions">
+      <button class="cb-clear" id="compare-clear-btn">Təmizlə</button>
+      <button class="cb-go" id="compare-go-btn">Müqayisə et</button>
+    </div>
+  </div>
+
+  <!-- Admin/işçi tələbə görünüşündəykən panelə qayıtmaq üçün -->
+  <div class="device">
+    <div class="statusbar">
+      <span id="status-time">09:41</span>
+      <span>BTM</span>
+      <span>92%</span>
+    </div>
+
+    <!-- Admin/işçi "tələbə kimi bax" rejimindəykən görünən zolaq -->
+    <div id="admin-return-banner">
+      <span>👁️ Tələbə görünüşü</span>
+      <button id="admin-return-btn">⚙ Panelə qayıt</button>
+    </div>
+
+    <!-- ══════════════ SPLASH ══════════════ -->
+    <div class="screen active" id="splash" style="padding:0;">
+      <div class="splash">
+        <img src="logo.jpg" alt="Bilik Tədris Mərkəzi"
+          style="width: 160px; height: auto; border-radius: 16px; margin-bottom: 4px; object-fit: contain; mix-blend-mode: screen;">
+        <p
+          style="font-size: 12px; font-weight: 600; color: var(--gold); margin: 0 0 12px; font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: 0.08em;">
+          <span data-i18n="years_with_you">20 ildir sizinlə</span></p>
+        <p class="splash-word">Bilik Tədris Mərkəzi</p>
+        <p class="splash-tag" data-i18n="splash_tag">Xaricdə təhsil marşrutun — universitet seçimindən viza sənədlərinə
+          qədər bir yerdə.</p>
+        <button class="btn" id="splash-start" data-i18n="splash_start">Başla</button>
+      </div>
+    </div>
+
+    <!-- ══════════════ LOGIN ══════════════ -->
+    <div class="screen" id="login" style="background:var(--navy); color:var(--cream);">
+      <div style="display:flex; flex-direction:column; justify-content:center; height:100%; padding:0 10px;">
+
+        <div style="text-align:center; margin-bottom: 24px;">
+          <img src="logo.jpg" alt="Bilik Tədris Mərkəzi"
+            style="width: 100px; height: auto; border-radius: 12px; margin-bottom: 4px; object-fit: contain; mix-blend-mode: screen;">
+          <p
+            style="font-size: 10px; font-weight: 600; color: var(--gold); margin: 0; font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: 0.08em;">
+            <span data-i18n="years_with_you">20 ildir sizinlə</span></p>
+        </div>
+
+        <h1 class="title" style="margin-bottom:8px; text-align:center; color:var(--cream);" data-i18n="login">Giriş</h1>
+        <p class="sub" style="margin-bottom:24px; text-align:center; color:#AEB8CE;" data-i18n="login_sub">Hesabınıza daxil olun</p>
+
+        <div class="field" style="text-align:center;">
+          <label style="color:#AEB8CE; justify-content:center;" data-i18n="lbl_email">E-poçt ünvanı</label>
+          <input type="email" id="login-email" placeholder="məs. aysel.m@mail.com"
+            style="text-align:center; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:var(--cream);">
+        </div>
+        <div class="field" style="text-align:center;">
+          <label style="color:#AEB8CE; justify-content:center;" data-i18n="lbl_password">Şifrə</label>
+          <input type="password" id="login-password" placeholder="Şifrəniz"
+            style="text-align:center; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:var(--cream);">
+        </div>
+
+        <p style="text-align:right; margin:-10px 0 16px; font-size:12px;">
+          <span id="go-forgot-password" style="color:var(--gold); cursor:pointer;" data-i18n="forgot_password">Şifrəni unutmusunuz?</span>
+        </p>
+
+        <p id="login-error"
+          style="color:var(--coral); font-size:12px; display:none; margin-top:-10px; margin-bottom:12px; text-align:center;">
+        </p>
+
+        <button class="btn" id="login-btn" style="width:100%; margin-top:8px;" data-i18n="btn_login">Daxil ol</button>
+
+        <p style="text-align:center; margin-top:24px; font-size:13px; color:#AEB8CE;">
+          <span data-i18n="no_account">Hesabınız yoxdur?</span> <span id="go-register"
+            style="color:var(--gold); font-weight:600; cursor:pointer;" data-i18n="register">Qeydiyyat</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- ══════════════ REGISTER ══════════════ -->
+    <div class="screen" id="register" style="background:var(--navy); color:var(--cream);">
+      <div style="display:flex; flex-direction:column; justify-content:center; height:100%; padding:0 10px;">
+
+        <div style="text-align:center; margin-bottom: 24px;">
+          <img src="logo.jpg" alt="Bilik Tədris Mərkəzi"
+            style="width: 100px; height: auto; border-radius: 12px; margin-bottom: 4px; object-fit: contain; mix-blend-mode: screen;">
+          <p
+            style="font-size: 10px; font-weight: 600; color: var(--gold); margin: 0; font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: 0.08em;">
+            <span data-i18n="years_with_you">20 ildir sizinlə</span></p>
+        </div>
+
+        <h1 class="title" style="margin-bottom:8px; text-align:center; color:var(--cream);" data-i18n="register">Qeydiyyat</h1>
+        <p class="sub" style="margin-bottom:24px; text-align:center; color:#AEB8CE;" data-i18n="register_sub">Yeni hesab yaradın</p>
+
+        <div class="field" style="text-align:center;">
+          <label style="color:#AEB8CE; justify-content:center;" data-i18n="lbl_fullname">Ad və Soyad</label>
+          <input type="text" id="reg-name" placeholder="məs. Elmir Əbdülhəsənli"
+            style="text-align:center; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:var(--cream);">
+        </div>
+        <div class="field" style="text-align:center;">
+          <label style="color:#AEB8CE; justify-content:center;" data-i18n="lbl_email">E-poçt ünvanı</label>
+          <input type="email" id="reg-email" placeholder="məs. aysel.m@mail.com"
+            style="text-align:center; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:var(--cream);">
+        </div>
+        <div class="field" style="text-align:center;">
+          <label style="color:#AEB8CE; justify-content:center;" data-i18n="lbl_password">Şifrə</label>
+          <input type="password" id="reg-password" placeholder="Şifrəniz (ən az 6 simvol)"
+            style="text-align:center; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:var(--cream);">
+        </div>
+
+        <p id="reg-error"
+          style="color:var(--coral); font-size:12px; display:none; margin-top:-10px; margin-bottom:12px; text-align:center;">
+        </p>
+
+        <button class="btn" id="reg-btn" style="width:100%; margin-top:8px;" data-i18n="register_btn">Qeydiyyatdan
+          keç</button>
+
+        <p style="text-align:center; margin-top:24px; font-size:13px; color:#AEB8CE;">
+          <span data-i18n="have_account">Artıq hesabınız var?</span> <span id="go-login"
+            style="color:var(--gold); font-weight:600; cursor:pointer;" data-i18n="login">Giriş</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- ══════════════ ŞİFRƏNİ UNUTDUM ══════════════ -->
+    <div class="screen" id="forgot-password" style="background:var(--navy); color:var(--cream);">
+      <div style="display:flex; flex-direction:column; justify-content:center; height:100%; padding:0 10px;">
+
+        <div style="text-align:center; margin-bottom: 24px;">
+          <img src="logo.jpg" alt="Bilik Tədris Mərkəzi"
+            style="width: 100px; height: auto; border-radius: 12px; margin-bottom: 4px; object-fit: contain; mix-blend-mode: screen;">
+        </div>
+
+        <h1 class="title" style="margin-bottom:8px; text-align:center; color:var(--cream);" data-i18n="fp_title">Şifrəni bərpa et</h1>
+        <p class="sub" style="margin-bottom:24px; text-align:center; color:#AEB8CE;" data-i18n="fp_sub">E-poçt ünvanınızı daxil edin, sizə bərpa linki göndərək.</p>
+
+        <div class="field" style="text-align:center;">
+          <label style="color:#AEB8CE; justify-content:center;" data-i18n="lbl_email">E-poçt ünvanı</label>
+          <input type="email" id="forgot-email" placeholder="məs. aysel.m@mail.com"
+            style="text-align:center; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:var(--cream);">
+        </div>
+
+        <p id="forgot-error"
+          style="color:var(--coral); font-size:12px; display:none; margin-top:-10px; margin-bottom:12px; text-align:center;">
+        </p>
+        <p id="forgot-success"
+          style="color:var(--teal); font-size:12px; display:none; margin-top:-10px; margin-bottom:12px; text-align:center;">
+        </p>
+
+        <button class="btn" id="send-reset-btn" style="width:100%; margin-top:8px;" data-i18n="fp_send">Bağlantı göndər</button>
+
+        <p style="text-align:center; margin-top:24px; font-size:13px; color:#AEB8CE;">
+          <span id="back-to-login-from-forgot" style="color:var(--gold); font-weight:600; cursor:pointer;" data-i18n="fp_back">&larr; Girişə qayıt</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- ══════════════ YENİ ŞİFRƏ TƏYİN ET ══════════════ -->
+    <div class="screen" id="reset-password" style="background:var(--navy); color:var(--cream);">
+      <div style="display:flex; flex-direction:column; justify-content:center; height:100%; padding:0 10px;">
+
+        <div style="text-align:center; margin-bottom: 24px;">
+          <img src="logo.jpg" alt="Bilik Tədris Mərkəzi"
+            style="width: 100px; height: auto; border-radius: 12px; margin-bottom: 4px; object-fit: contain; mix-blend-mode: screen;">
+        </div>
+
+        <h1 class="title" style="margin-bottom:8px; text-align:center; color:var(--cream);" data-i18n="rp_title">Yeni şifrə təyin et</h1>
+        <p class="sub" style="margin-bottom:24px; text-align:center; color:#AEB8CE;" data-i18n="rp_sub">Hesabınız üçün yeni şifrə daxil edin.</p>
+
+        <div class="field" style="text-align:center;">
+          <label style="color:#AEB8CE; justify-content:center;" data-i18n="lbl_new_password">Yeni şifrə</label>
+          <input type="password" id="new-password" placeholder="Ən az 6 simvol"
+            style="text-align:center; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:var(--cream);">
+        </div>
+        <div class="field" style="text-align:center;">
+          <label style="color:#AEB8CE; justify-content:center;" data-i18n="lbl_confirm_password">Yeni şifrəni təkrarla</label>
+          <input type="password" id="confirm-password" placeholder="Şifrəni təkrar daxil edin"
+            style="text-align:center; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:var(--cream);">
+        </div>
+
+        <p id="reset-password-error"
+          style="color:var(--coral); font-size:12px; display:none; margin-top:-10px; margin-bottom:12px; text-align:center;">
+        </p>
+
+        <button class="btn" id="update-password-btn" style="width:100%; margin-top:8px;" data-i18n="rp_update">Şifrəni yenilə</button>
+      </div>
+    </div>
+
+    <!-- ══════════════ HOME ══════════════ -->
+    <div class="screen" id="home">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
+        <div>
+          <p class="eyebrow" data-i18n="welcome">Xoş gördük</p>
+          <h1 class="title" id="home-greeting" data-i18n="greeting">Salam, Tələbə</h1>
+        </div>
+        <button id="notif-bell-btn" aria-label="Bildirişlər"
+          style="position:relative; flex-shrink:0; background:#fff; border:1px solid var(--line); border-radius:12px; width:40px; height:40px; font-size:17px; cursor:pointer; margin-top:2px;">
+          🔔
+          <span id="notif-badge"
+            style="display:none; position:absolute; top:-4px; right:-4px; min-width:17px; height:17px; padding:0 3px; border-radius:9px; background:var(--coral); color:#fff; font-size:10px; font-weight:700; align-items:center; justify-content:center; font-family:'Inter',sans-serif; line-height:1;"></span>
+        </button>
+      </div>
+      <p class="sub" data-i18n="home_sub">Təhsil səyahətin Bilik ilə başlayır.</p>
+
+      <!-- "Növbəti addım" — tələbənin vəziyyətinə görə dəyişən tövsiyə -->
+      <div class="next-step-card" id="next-step-card">
+        <p class="ns-eyebrow" id="next-step-eyebrow">Növbəti addım</p>
+        <p class="ns-title" id="next-step-title">Profilini doldur</p>
+        <p class="ns-sub" id="next-step-sub">Sənə uyğun universitetləri görmək üçün profilini tamamla.</p>
+        <div class="ns-meta" id="next-step-meta" style="display:none;"></div>
+        <button class="ns-btn" id="next-step-btn">Başla</button>
+      </div>
+
+      <!-- Xidmətlər paneli -->
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;">
+        <div class="card"
+          style="text-align: center; padding: 14px 8px; cursor: pointer; transition: transform .15s, box-shadow .15s;"
+          onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(15,23,42,0.1)'"
+          onmouseout="this.style.transform='';this.style.boxShadow=''">
+          <div
+            style="width: 40px; height: 40px; border-radius: 12px; background: var(--navy); color: var(--gold); display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 18px;">
+            📝</div>
+          <p style="font-size: 11.5px; font-weight: 600; margin: 0 0 2px; color: var(--ink);">DİM</p>
+          <p style="font-size: 10px; color: var(--ink-soft); margin: 0;" data-i18n="srv_dim">Qəbul hazırlığı</p>
+        </div>
+        <div class="card"
+          style="text-align: center; padding: 14px 8px; cursor: pointer; transition: transform .15s, box-shadow .15s;"
+          onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(15,23,42,0.1)'"
+          onmouseout="this.style.transform='';this.style.boxShadow=''">
+          <div
+            style="width: 40px; height: 40px; border-radius: 12px; background: var(--navy); color: var(--gold); display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 18px;">
+            🎓</div>
+          <p style="font-size: 11.5px; font-weight: 600; margin: 0 0 2px; color: var(--ink);">YÖS / SAT</p>
+          <p style="font-size: 10px; color: var(--ink-soft); margin: 0;" data-i18n="srv_yos">İmtahan hazırlığı</p>
+        </div>
+        <div class="card"
+          style="text-align: center; padding: 14px 8px; cursor: pointer; transition: transform .15s, box-shadow .15s;"
+          onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(15,23,42,0.1)'"
+          onmouseout="this.style.transform='';this.style.boxShadow=''">
+          <div
+            style="width: 40px; height: 40px; border-radius: 12px; background: var(--navy); color: var(--gold); display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 18px;">
+            🌐</div>
+          <p style="font-size: 11.5px; font-weight: 600; margin: 0 0 2px; color: var(--ink);">IELTS</p>
+          <p style="font-size: 10px; color: var(--ink-soft); margin: 0;">TOEFL / GRE</p>
+        </div>
+        <div class="card"
+          style="text-align: center; padding: 14px 8px; cursor: pointer; transition: transform .15s, box-shadow .15s;"
+          onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(15,23,42,0.1)'"
+          onmouseout="this.style.transform='';this.style.boxShadow=''">
+          <div
+            style="width: 40px; height: 40px; border-radius: 12px; background: var(--navy); color: var(--gold); display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 18px;">
+            ✈️</div>
+          <p style="font-size: 11.5px; font-weight: 600; margin: 0 0 2px; color: var(--ink);" data-i18n="srv_abroad">Xaricdə</p>
+          <p style="font-size: 10px; color: var(--ink-soft); margin: 0;" data-i18n="srv_abroad_sub">Təhsil & viza</p>
+        </div>
+        <div class="card"
+          style="text-align: center; padding: 14px 8px; cursor: pointer; transition: transform .15s, box-shadow .15s;"
+          onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(15,23,42,0.1)'"
+          onmouseout="this.style.transform='';this.style.boxShadow=''">
+          <div
+            style="width: 40px; height: 40px; border-radius: 12px; background: var(--navy); color: var(--gold); display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 18px;">
+            📐</div>
+          <p style="font-size: 11.5px; font-weight: 600; margin: 0 0 2px; color: var(--ink);" data-i18n="srv_math">
+            Riyaziyyat</p>
+          <p style="font-size: 10px; color: var(--ink-soft); margin: 0;" data-i18n="srv_math_sub">& Olimpiada</p>
+        </div>
+        <div class="card"
+          style="text-align: center; padding: 14px 8px; cursor: pointer; transition: transform .15s, box-shadow .15s;"
+          onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(15,23,42,0.1)'"
+          onmouseout="this.style.transform='';this.style.boxShadow=''">
+          <div
+            style="width: 40px; height: 40px; border-radius: 12px; background: var(--navy); color: var(--gold); display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 18px;">
+            🧮</div>
+          <p style="font-size: 11.5px; font-weight: 600; margin: 0 0 2px; color: var(--ink);"
+            data-i18n="srv_higher_math">Ali Riyaziyyat</p>
+          <p style="font-size: 10px; color: var(--ink-soft); margin: 0;" data-i18n="srv_higher_math_sub">& Fizika</p>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><b id="home-uni-count">0</b><span data-i18n="stat_unis">Seçilmiş universitet</span></div>
+        <div class="stat"><b id="home-doc-count">0</b><span data-i18n="stat_docs">Tamamlanmış sənəd</span></div>
+        <div class="stat"><b id="home-consult-count">0</b><span data-i18n="stat_consults">Planlaşan konsultasiya</span>
+        </div>
+      </div>
+
+      <div class="card" style="background:var(--teal-bg);border:none;">
+        <p class="uni-name" style="margin-bottom:2px;" data-i18n="complete_profile">Profilini tamamla</p>
+        <p class="uni-loc" style="margin-bottom:0;" data-i18n="complete_profile_sub">Ölkə, ixtisas, imtahan nəticələri və büdcəni doldur ki, sənə uyğun proqramları görək.</p>
+        <button class="btn" id="go-onboarding" style="background:var(--teal);" data-i18n="fill_form">Formu doldur</button>
+      </div>
+
+      <div id="home-selected-unis-container" style="display:none; margin-top: 24px;">
+        <p class="section-label" data-i18n="selected_unis">Seçdiyiniz universitetlər</p>
+        <div id="home-selected-unis-list"></div>
+      </div>
+
+      <!-- Haqqımızda -->
+      <div id="about-section" style="margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--line);">
+        <p class="section-label" data-i18n="about_us">Haqqımızda</p>
+
+        <!-- Logo və başlıq -->
+        <div class="card" style="background: var(--navy); border: none; color: var(--cream); padding: 20px 16px;">
+          <div style="text-align: center; margin-bottom: 12px;">
+            <img src="logo.jpg" alt="Bilik Tədris Mərkəzi"
+              style="width: 80px; height: auto; border-radius: 10px; object-fit: contain; mix-blend-mode: screen;">
+          </div>
+          <p
+            style="font-family: 'Fraunces', serif; font-weight: 600; font-size: 17px; text-align: center; margin: 0 0 10px; color: var(--gold);">
+            Bilik Tədris Mərkəzi</p>
+          <p style="font-size: 12.5px; color: #AEB8CE; line-height: 1.7; margin: 0; text-align: center;" data-i18n="abt_center_desc">
+            Bilik Tədris Mərkəzi 2007-ci ildən etibarən Sumqayıt şəhərində fəaliyyət göstərməyə başladı. Bu günə qədər
+            yüzlərlə şagird və tələbənin uğur yolunda yanlarında olmuşdur. Tədris mərkəzimiz, təhsildə keyfiyyətə,
+            nəticəyə və etibara əsaslanan yanaşması ilə valideynlərin və gənclərin etibar etdiyi nüfuzlu bir quruma
+            çevrilmişdir. Bu səbəbdən də, ikinci filialımız 2011-ci ildən Bakı şəhərində fəaliyyətə başladı. Bu illər
+            ərzində biz yerli və beynəlxalq təhsil istiqamətləri üzrə uğurlu nəticələr əldə etmiş, onlarla tələbənin ali
+            məktəblərə və xaricdə təhsilə qəbuluna nail olmuşuq.</p>
+        </div>
+
+        <!-- Missiyamız -->
+        <div class="card" style="margin-top: 10px;">
+          <p style="font-weight: 600; font-size: 14px; margin: 0 0 6px; display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 16px;">🎯</span><span data-i18n="abt_mission_title">Missiyamız</span>
+          </p>
+          <p style="font-size: 12.5px; color: var(--ink-soft); line-height: 1.7; margin: 0;" data-i18n="abt_mission_body">
+            Təhsili yalnız imtahana hazırlıq kimi deyil, həyata hazırlıq kimi təqdim etmək. Bizim məqsədimiz – gəncləri
+            düşünən, tətbiq edən və gələcəyə inamla addımlayan fərdlərə çevirməkdir.</p>
+        </div>
+
+        <!-- Xidmətlər -->
+        <div class="card" style="margin-top: 10px;">
+          <p style="font-weight: 600; font-size: 14px; margin: 0 0 10px; display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 16px;">📚</span><span data-i18n="abt_services_title">Təklif etdiyimiz xidmətlər</span>
+          </p>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div
+              style="display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5;">
+              <span style="color: var(--teal); font-weight: 600; flex-shrink: 0;">•</span>
+              <span data-i18n="abt_svc_1">Abituriyent hazırlığı (DİM, buraxılış, qəbul imtahanları)</span>
+            </div>
+            <div
+              style="display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5;">
+              <span style="color: var(--teal); font-weight: 600; flex-shrink: 0;">•</span>
+              <span data-i18n="abt_svc_2">YÖS və SAT imtahanlarına hazırlıq</span>
+            </div>
+            <div
+              style="display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5;">
+              <span style="color: var(--teal); font-weight: 600; flex-shrink: 0;">•</span>
+              <span data-i18n="abt_svc_3">Ümumi ingilis dili üzrə kurslar</span>
+            </div>
+            <div
+              style="display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5;">
+              <span style="color: var(--teal); font-weight: 600; flex-shrink: 0;">•</span>
+              <span data-i18n="abt_svc_4">Beynəlxalq sertifikasiya imtahanlarına hazırlıq (TOEFL, IELTS, GRE, GMAT)</span>
+            </div>
+            <div
+              style="display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5;">
+              <span style="color: var(--teal); font-weight: 600; flex-shrink: 0;">•</span>
+              <span data-i18n="abt_svc_5">Riyaziyyat və informatika dərsləri (o cümlədən olimpiada hazırlığı)</span>
+            </div>
+            <div
+              style="display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5;">
+              <span style="color: var(--teal); font-weight: 600; flex-shrink: 0;">•</span>
+              <span data-i18n="abt_svc_6">Xaricdə təhsil üzrə konsultasiya və qeydiyyat</span>
+            </div>
+            <div
+              style="display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5;">
+              <span style="color: var(--teal); font-weight: 600; flex-shrink: 0;">•</span>
+              <span data-i18n="abt_svc_7">Ali riyaziyyat və fizika fənləri üzrə dərslər (tələbələr üçün)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Müəllim heyəti -->
+        <div class="card" style="margin-top: 10px;">
+          <p style="font-weight: 600; font-size: 14px; margin: 0 0 6px; display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 16px;">👨‍🏫</span><span data-i18n="abt_teachers_title">Müəllim heyətimiz</span>
+          </p>
+          <p style="font-size: 12.5px; color: var(--ink-soft); line-height: 1.7; margin: 0;" data-i18n="abt_teachers_body">
+            Bilik Tədris Mərkəzində yalnız peşəkar, təcrübəli və ixtisaslı müəllimlər fəaliyyət göstərir. Hər müəllim öz
+            sahəsində müasir tədris metodlarını tətbiq edir və hər bir şagirdə fərdi yanaşma göstərir. Müəllimlərimiz
+            həm akademik bilik, həm də psixoloji yanaşma baxımından öyrənməyə motivasiya yaradır.</p>
+        </div>
+
+        <!-- Uğurlarımız -->
+        <div class="card" style="margin-top: 10px;">
+          <p style="font-weight: 600; font-size: 14px; margin: 0 0 10px; display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 16px;">🌍</span><span data-i18n="abt_achieve_title">Uğurlarımız</span>
+          </p>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div
+              style="display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5;">
+              <span style="color: var(--gold-deep); flex-shrink: 0;">★</span>
+              <span data-i18n="abt_achieve_1">2007-ci ildən bu günə qədər minlərlə tələbəyə təhsil xidməti göstərilmişdir</span>
+            </div>
+            <div
+              style="display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5;">
+              <span style="color: var(--gold-deep); flex-shrink: 0;">★</span>
+              <span data-i18n="abt_achieve_2">Onlarla tələbəmiz xaricdə təhsil alır – Türkiyə, Almaniya, Polşa və digər ölkələrdə</span>
+            </div>
+            <div
+              style="display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5;">
+              <span style="color: var(--gold-deep); flex-shrink: 0;">★</span>
+              <span data-i18n="abt_achieve_3">Dəfələrlə olimpiada və sınaq imtahanlarında yüksək nəticələr</span>
+            </div>
+            <div
+              style="display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5;">
+              <span style="color: var(--gold-deep); flex-shrink: 0;">★</span>
+              <span data-i18n="abt_achieve_4">Valideynlərin məmnuniyyəti və tövsiyələri ilə daim böyüyən bir mərkəz</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Nailiyyətlərimiz — şəkilli, admin idarə edir -->
+        <div class="card" style="margin-top: 10px;">
+          <p style="font-weight: 600; font-size: 14px; margin: 0 0 10px; display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 16px;">🏆</span><span data-i18n="achievements_title">Nailiyyətlərimiz</span>
+          </p>
+          <div id="achievements-list" style="display:flex; gap:10px; overflow-x:auto; padding-bottom:4px;"></div>
+          <p id="achievements-empty" class="doc-due" style="display:none; text-align:center; padding:8px 0 0; margin:0;" data-i18n="achievements_empty">Hələ heç bir nailiyyət əlavə olunmayıb.</p>
+        </div>
+
+        <!-- Niyə bizi seçirlər -->
+        <div class="card" style="margin-top: 10px; background: var(--teal-bg); border: none;">
+          <p style="font-weight: 600; font-size: 14px; margin: 0 0 10px; display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 16px;">💬</span><span data-i18n="abt_why_title">Niyə bizi seçirlər?</span>
+          </p>
+          <div style="display: flex; flex-direction: column; gap: 7px;">
+            <p style="font-size: 12.5px; color: var(--ink); margin: 0; line-height: 1.5;" data-i18n="abt_why_1">✅ 17 ildən çox təcrübə –
+              2007-dən bu günə</p>
+            <p style="font-size: 12.5px; color: var(--ink); margin: 0; line-height: 1.5;" data-i18n="abt_why_2">✅ Keyfiyyətli və müasir tədris
+              yanaşması</p>
+            <p style="font-size: 12.5px; color: var(--ink); margin: 0; line-height: 1.5;" data-i18n="abt_why_3">✅ Hər bir tələbəyə fərdi
+              proqram və izah</p>
+            <p style="font-size: 12.5px; color: var(--ink); margin: 0; line-height: 1.5;" data-i18n="abt_why_4">✅ Real nəticələr, real uğurlar
+            </p>
+            <p style="font-size: 12.5px; color: var(--ink); margin: 0; line-height: 1.5;" data-i18n="abt_why_5">✅ Davamlı dəstək və istiqamət
+            </p>
+            <p style="font-size: 12.5px; color: var(--ink); margin: 0; line-height: 1.5;" data-i18n="abt_why_6">✅ Ailələrlə müntəzəm əlaqə və
+              hesabatlılıq</p>
+          </div>
+        </div>
+
+        <!-- Bağlayıcı mesaj -->
+        <div class="card"
+          style="margin-top: 10px; background: var(--navy-2); border: none; color: var(--cream); text-align: center;">
+          <p
+            style="font-size: 14px; margin: 0 0 6px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+            <span style="font-size: 15px;">📌</span>
+            <span style="font-weight: 600; color: var(--gold);" data-i18n="abt_closing_title">Uğura aparan yolun başlanğıcı</span>
+          </p>
+          <p style="font-size: 12.5px; color: #AEB8CE; line-height: 1.7; margin: 0;" data-i18n="abt_closing_body">
+            Əgər siz də övladınız üçün təhlükəsiz, müasir və nəticə yönümlü bir təhsil mərkəzi axtarırsınızsa, Bilik
+            Tədris Mərkəzi doğru ünvandır. Gələcəyin ali məktəb tələbələri, peşəkarları və liderləri burada yetişir.</p>
+        </div>
+
+        <div style="text-align: center; padding: 16px 0 8px;">
+          <p style="font-size: 11px; color: var(--ink-soft); margin: 0;" data-i18n="abt_copyright">© 2026 Bilik Tədris Mərkəzi. Bütün hüquqlar
+            qorunur.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ══════════════ UNİVERSİTETLƏR ══════════════ -->
+    <div class="screen" id="unis">
+      <p class="eyebrow" data-i18n="unis_eyebrow">Axtarış</p>
+      <h1 class="title" data-i18n="unis_title">Universitetlər</h1>
+      <p class="sub" data-i18n="unis_sub">Bütün ölkə və ixtisaslar profilindəki eyni siyahıdandır — uyğunluq sənin profilinə görə hesablanır.</p>
+
+      <input type="text" id="uni-search" placeholder="🔍 Universitet axtar..." data-i18n-ph="uni_search_ph"
+        style="width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; font-family:'Inter',sans-serif; font-size:13px; margin-bottom:12px; background:#fff; color:var(--ink);">
+
+      <div class="chip-group" id="uni-filters" style="margin-bottom:16px;"></div>
+
+      <div id="uni-list"></div>
+      <p id="uni-list-empty" class="doc-due" style="display:none; text-align:center; padding:20px 0;" data-i18n="uni_empty">Bu axtarışa uyğun universitet tapılmadı.</p>
+    </div>
+
+    <!-- ══════════════ UNİVERSİTET MÜQAYİSƏSİ ══════════════ -->
+    <div class="screen" id="uni-compare">
+      <button class="link-back" id="compare-back-btn" data-i18n="cmp_back">&larr; Universitetlərə qayıt</button>
+      <p class="eyebrow" data-i18n="cmp_eyebrow">Müqayisə</p>
+      <h1 class="title" data-i18n="cmp_title">Universitetləri müqayisə et</h1>
+      <p class="sub" id="compare-sub" data-i18n="cmp_sub">Seçdiyin universitetlər yan-yana.</p>
+
+      <div class="compare-table-wrap">
+        <table class="compare-table" id="compare-table"></table>
+      </div>
+    </div>
+
+    <!-- ══════════════ SƏNƏDLƏR ══════════════ -->
+    <div class="screen" id="docs">
+      <p class="eyebrow" data-i18n="docs_eyebrow">İzləmə</p>
+      <h1 class="title" data-i18n="docs_title">Sənədlərim</h1>
+      <p class="sub" id="docs-subtitle" data-i18n="docs_sub">Müraciətiniz üçün lazım olan sənədlər.</p>
+
+      <div class="card">
+        <p class="section-label" style="margin-bottom:0;"><span data-i18n="docs_progress">Ümumi irəliləyiş —</span> <span id="doc-progress-pct">0%</span></p>
+        <div class="progress-track">
+          <div class="progress-fill" id="doc-progress-fill" style="width:0%;"></div>
+        </div>
+      </div>
+
+      <div class="card" style="background:var(--teal-bg);border:none;">
+        <p class="uni-loc" style="margin:0;color:var(--teal);"><b style="color:var(--teal);" data-i18n="docs_note_label">Qeyd:</b> <span data-i18n="docs_note">sənədin kağız versiyası yanınızdadırsa, telefonla şəklini çəkib birbaşa bura yükləyə bilərsiniz — skaner lazım deyil.</span></p>
+      </div>
+
+      <div class="card" id="doc-list"></div>
+      <p id="doc-list-empty" class="doc-due" style="display:none; text-align:center; padding:16px 0;" data-i18n="docs_empty">Sənəd siyahısı hazırlanır. Zəhmət olmasa mərkəzlə əlaqə saxlayın.</p>
+    </div>
+
+    <!-- ══════════════ KONSULTASİYA ══════════════ -->
+    <div class="screen" id="consult">
+      <p class="eyebrow" data-i18n="consult_eyebrow">Dəstək</p>
+      <h1 class="title" data-i18n="consult_title">Konsultasiya</h1>
+      <p class="sub" data-i18n="consult_sub">Təcrübəli məsləhətçilərlə görüş planlaşdır.</p>
+
+      <div id="my-consultations-section" style="display:none; margin-bottom:22px;">
+        <p class="section-label" data-i18n="my_meetings">Sizin görüşləriniz</p>
+        <div id="my-consultations-list"></div>
+      </div>
+
+      <p class="section-label" data-i18n="advisors">Məsləhətçilər</p>
+      <div class="card" id="consultant-farid">
+        <div class="advisor-row">
+          <div class="avatar">FB</div>
+          <div>
+            <p class="uni-name" style="margin-bottom:1px;">Fərid Bəy</p>
+            <p class="uni-loc">Türkiyə və Asiya üzrə mütəxəssis</p>
+          </div>
+        </div>
+        <div class="uni-tags"><span class="tag">4.9 reytinq</span><span class="tag">120+ məsləhət</span></div>
+        <button class="btn book-toggle" data-i18n="book_meeting">Görüş planlaşdır</button>
+        <div class="book-panel" style="display:none;">
+          <div class="field" style="margin-top:12px;">
+            <label data-i18n="meeting_type">Görüş növü</label>
+            <select class="book-type">
+              <option value="Online" data-i18n-opt="type_online">Online</option>
+              <option value="Canlı" data-i18n-opt="type_office">Canlı (Mərkəzdə)</option>
+            </select>
+          </div>
+          <div class="field"><label data-i18n="lbl_date">Tarix</label><input type="date" class="book-date"></div>
+          <div class="field"><label data-i18n="lbl_time">Saat</label><input type="time" class="book-time"></div>
+          <button class="btn book-confirm" data-i18n="confirm_meeting">Görüşü təsdiqlə</button>
+          <p class="book-confirmed" style="display:none;font-size:12px;color:var(--teal);margin:8px 0 0;"></p>
+        </div>
+      </div>
+
+      <div class="card" id="consultant-ahmet">
+        <div class="advisor-row">
+          <div class="avatar">AD</div>
+          <div>
+            <p class="uni-name" style="margin-bottom:1px;">Ahmet Dolu</p>
+            <p class="uni-loc">Amerika, Avropa və Çin üzrə mütəxəssis</p>
+          </div>
+        </div>
+        <div class="uni-tags"><span class="tag">4.8 reytinq</span><span class="tag">80+ məsləhət</span></div>
+        <button class="btn ghost book-toggle" data-i18n="book_meeting">Görüş planlaşdır</button>
+        <div class="book-panel" style="display:none;">
+          <div class="field" style="margin-top:12px;">
+            <label data-i18n="meeting_type">Görüş növü</label>
+            <select class="book-type">
+              <option value="Online" data-i18n-opt="type_online">Online</option>
+              <option value="Canlı" data-i18n-opt="type_office">Canlı (Mərkəzdə)</option>
+            </select>
+          </div>
+          <div class="field"><label data-i18n="lbl_date">Tarix</label><input type="date" class="book-date"></div>
+          <div class="field"><label data-i18n="lbl_time">Saat</label><input type="time" class="book-time"></div>
+          <button class="btn book-confirm" data-i18n="confirm_meeting">Görüşü təsdiqlə</button>
+          <p class="book-confirmed" style="display:none;font-size:12px;color:var(--teal);margin:8px 0 0;"></p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="advisor-row">
+          <div class="avatar" style="background: var(--teal); color: #fff;">RH</div>
+          <div>
+            <p class="uni-name" style="margin-bottom:1px;">Rəhbərliklə görüş</p>
+            <p class="uni-loc">Xüsusi hallar, təklif və şikayətlər</p>
+          </div>
+        </div>
+        <div class="uni-tags"><span class="tag">Rəsmi nümayəndəlik</span></div>
+        <button class="btn ghost book-toggle" data-i18n="book_meeting">Görüş planlaşdır</button>
+        <div class="book-panel" style="display:none;">
+          <div class="field" style="margin-top:12px;">
+            <label data-i18n="meeting_type">Görüş növü</label>
+            <select class="book-type">
+              <option value="Online" data-i18n-opt="type_online">Online</option>
+              <option value="Canlı" data-i18n-opt="type_office">Canlı (Mərkəzdə)</option>
+            </select>
+          </div>
+          <div class="field"><label data-i18n="lbl_date">Tarix</label><input type="date" class="book-date"></div>
+          <div class="field"><label data-i18n="lbl_time">Saat</label><input type="time" class="book-time"></div>
+          <button class="btn book-confirm" data-i18n="confirm_meeting">Görüşü təsdiqlə</button>
+          <p class="book-confirmed" style="display:none;font-size:12px;color:var(--teal);margin:8px 0 0;"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ PROFİL ══════════════ -->
+    <div class="screen" id="profile">
+      <div class="profile-head">
+        <div class="profile-avatar" id="profile-avatar-initials">?</div>
+        <h1 class="title" style="font-size:19px;" id="profile-name-display">Profil doldurmayıb</h1>
+        <p class="sub" style="margin-bottom:0;" id="profile-email-display">—</p>
+      </div>
+      <p class="section-label" data-i18n="profile_edu">Təhsil profili</p>
+      <div class="card" style="padding:2px 14px;">
+        <div class="list-row"><span data-i18n="pr_level">Hədəf dərəcə</span><span id="profile-level">—</span></div>
+        <div class="list-row"><span data-i18n="pr_field">Sahə</span><span id="profile-field">—</span></div>
+        <div class="list-row"><span data-i18n="pr_budget">Büdcə (illik)</span><span id="profile-budget">—</span></div>
+        <div class="list-row"><span data-i18n="pr_score">İmtahan balı</span><span id="profile-score">—</span></div>
+        <div class="list-row"><span data-i18n="pr_countries">Hədəf ölkələr</span><span id="profile-countries">—</span></div>
+        <div class="list-row" id="profile-consultation-row"
+          style="border-bottom:none; display:none; flex-direction:column; align-items:flex-start;">
+          <span style="font-weight:600; margin-bottom:4px; color:var(--teal);" data-i18n="pr_next_consult">Gələcək konsultasiya</span>
+          <span id="profile-consultation" style="font-size:13px;">—</span>
+        </div>
+      </div>
+      <p class="section-label" data-i18n="lang_section">Dil seçimi</p>
+      <div class="card" style="padding: 10px 14px;">
+        <div style="display: flex; gap: 8px;">
+          <button class="lang-btn active" data-lang="az"
+            style="flex:1; padding: 10px 0; border-radius: 10px; border: 1.5px solid var(--navy); background: var(--navy); color: var(--gold); font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .2s;">🇦🇿
+            AZ</button>
+          <button class="lang-btn" data-lang="en"
+            style="flex:1; padding: 10px 0; border-radius: 10px; border: 1.5px solid var(--line); background: #fff; color: var(--ink-soft); font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .2s;">🇬🇧
+            EN</button>
+          <button class="lang-btn" data-lang="ru"
+            style="flex:1; padding: 10px 0; border-radius: 10px; border: 1.5px solid var(--line); background: #fff; color: var(--ink-soft); font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .2s;">🇷🇺
+            RU</button>
+          <button class="lang-btn" data-lang="tr"
+            style="flex:1; padding: 10px 0; border-radius: 10px; border: 1.5px solid var(--line); background: #fff; color: var(--ink-soft); font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .2s;">🇹🇷
+            TR</button>
+        </div>
+      </div>
+      <button class="btn ghost" id="profile-edit-btn" data-i18n="edit_profile">Profili redaktə et</button>
+      <button class="btn ghost" id="profile-logout-btn" style="color:var(--coral); margin-top:8px;"
+        data-i18n="logout">Hesabdan
+        çıx</button>
+    </div>
+
+    <!-- ══════════════ ONBOARDING FORMU ══════════════ -->
+    <div class="screen" id="onboarding">
+      <button class="link-back" data-close-onboarding data-i18n="onb_back">&larr; Geri</button>
+      <p class="eyebrow" data-i18n="onb_eyebrow">Profil</p>
+      <h1 class="title" data-i18n="onb_title">Sənin profilin</h1>
+      <p class="sub" data-i18n="onb_sub">Bu məlumatlar sənə uyğun universitet və proqramları tapmaq üçündür.</p>
+
+      <div class="card" style="margin-bottom:16px;">
+        <p class="section-label" style="margin-bottom:0;"><span data-i18n="onb_progress">Doldurulma —</span> <span id="onb-progress-pct">0%</span></p>
+        <div class="progress-track">
+          <div class="progress-fill" id="onb-progress-fill" style="width:0%;"></div>
+        </div>
+        <p class="doc-due" id="onb-draft-note" style="margin-top:6px; display:none;" data-i18n="onb_draft_note">✓ Yazdıqlarınız avtomatik saxlanılır — yarımçıq qoysanız da itməyəcək.</p>
+      </div>
+
+      <div class="field"><label data-i18n="lbl_fullname">Ad və Soyad</label><input type="text" id="f-name" placeholder="məs. Elmir Əbdülhəsənli">
+      </div>
+      <div class="field"><label data-i18n="lbl_father_name">Ata adı</label><input type="text" id="f-father-name" placeholder="məs. Rövşən">
+      </div>
+      <div class="field"><label data-i18n="lbl_email">E-poçt ünvanı</label><input type="text" id="f-email"
+          placeholder="məs. aysel.m@mail.com"></div>
+      <div class="field"><label data-i18n="lbl_phone">Telefon nömrəsi</label><input type="text" id="f-phone"
+          placeholder="məs. +994 50 123 45 67"></div>
+      <div class="field"><label data-i18n="q_countries">Hansı ölkələrdə oxumaq istəyirsən? (maks. 5)</label>
+        <div class="chip-group" id="f-countries"></div>
+      </div>
+      <div class="field"><label data-i18n="q_fields">Hansı bölmələrdə / ixtisaslarda oxumaq istəyirsən? (maks. 5)</label>
+        <div class="chip-group" id="f-fields"></div>
+      </div>
+      <div class="field">
+        <label data-i18n="q_level">Səviyyə</label>
+        <div class="radio-row" id="f-level">
+          <div class="radio-opt sel" data-value="Bakalavr" data-i18n="lvl_bachelor">Bakalavr</div>
+          <div class="radio-opt" data-value="Magistr" data-i18n="lvl_master">Magistr</div>
+        </div>
+      </div>
+      <div class="field">
+        <label data-i18n="q_exams">Hansı imtahan nəticələrin / sertifikatların var?</label>
+        <div class="chip-group" id="f-exams">
+          <div class="chip">IELTS</div>
+          <div class="chip">TOEFL</div>
+          <div class="chip">SAT</div>
+          <div class="chip">YÖS</div>
+          <div class="chip">Atestat</div>
+          <div class="chip">Digər sertifikat</div>
+          <div class="chip">Hələ yoxdur</div>
+        </div>
+      </div>
+      <div id="dynamic-scores-container"></div>
+      <div class="field">
+        <label data-i18n="q_budget">Təxmini illik büdcən (təhsil haqqı + yaşayış)</label>
+        <select id="f-budget">
+          <option>3 000 &euro;-dan az</option>
+          <option>3 000 &ndash; 7 000 &euro;</option>
+          <option>7 000 &ndash; 15 000 &euro;</option>
+          <option>15 000 &euro;-dan çox</option>
+        </select>
+      </div>
+      <button class="btn" id="submit-onboarding" data-i18n="submit_profile">Profili tamamla</button>
+    </div>
+
+    <!-- ══════════════ ONBOARDING NƏTİCƏ ══════════════ -->
+    <div class="screen" id="onboarding-result">
+      <button class="link-back" data-back-to-onboarding data-i18n="res_back">&larr; Formu düzəlt</button>
+      <p class="eyebrow" data-i18n="res_eyebrow">Profil hazırdır</p>
+      <h1 class="title" id="result-name-title" data-i18n="res_title">Təşəkkürlər</h1>
+      <p class="sub" data-i18n="res_sub">Profilin əsasında sənə uyğun addımlar bunlardır.</p>
+      <div class="card">
+        <p class="section-label" style="margin-bottom:2px;" data-i18n="res_summary">Profil xülasəsi</p>
+        <div class="summary-row"><span data-i18n="r_name">Ad soyad</span><span id="r-name"></span></div>
+        <div class="summary-row" id="r-father-name-row" style="display:none;"><span data-i18n="r_father_name">Ata adı</span><span id="r-father-name"></span></div>
+        <div class="summary-row"><span data-i18n="r_email">E-poçt</span><span id="r-email"></span></div>
+        <div class="summary-row"><span data-i18n="r_phone">Telefon</span><span id="r-phone"></span></div>
+        <div class="summary-row"><span data-i18n="r_country">Ölkə</span><span id="r-country"></span></div>
+        <div class="summary-row"><span data-i18n="r_university">Universitet</span><span id="r-university"></span></div>
+        <div class="summary-row"><span data-i18n="r_field">Bölmə</span><span id="r-field"></span></div>
+        <div class="summary-row"><span data-i18n="r_level">Səviyyə</span><span id="r-level"></span></div>
+        <div class="summary-row"><span data-i18n="r_exams">İmtahan / sertifikat</span><span id="r-exams"></span></div>
+        <div class="summary-row"><span data-i18n="r_score">Nəticə balı</span><span id="r-score"></span></div>
+        <div class="summary-row"><span data-i18n="r_budget">İllik büdcə</span><span id="r-budget"></span></div>
+      </div>
+      <div class="card" style="background:var(--teal-bg);border:none;">
+        <p class="uni-name" style="margin-bottom:4px;" data-i18n="pick_unis_title">Universitet seçimini et</p>
+        <p class="uni-loc" data-i18n="pick_unis_sub">Seçdiyin ölkə(lər)dəki bütün universitetlərə bax və özünə uyğun olanları seç.</p>
+        <button class="btn" id="go-unis-from-result" data-i18n="pick_unis_btn">Universitetlərə bax</button>
+      </div>
+      <div class="card" id="r-note" style="background:var(--teal-bg);border:none;"></div>
+      <p class="section-label" data-i18n="next_step">Növbəti addım</p>
+      <div class="card">
+        <p class="uni-name" style="margin-bottom:4px;" data-i18n="contact_center">Bilik Tədris Mərkəzi ilə əlaqə</p>
+        <p class="uni-loc" data-i18n="contact_center_sub">Konkret hansı proqramlara uyğun olduğunu müraciət şərtlərini məsləhətçi ilə görüşdə dəqiqləşdirə bilərsən.</p>
+        <button class="btn" id="go-consult-from-result" data-i18n="go_consult">Konsultasiyaya yaz</button>
+      </div>
+    </div>
+
+    <!-- ══════════════ ADMIN PANELİ ══════════════ -->
+    <div class="screen" id="admin">
+
+      <!-- Admin Header -->
+      <div class="admin-header">
+        <div class="admin-header-left">
+          <h2>Bilik Admin</h2>
+          <span class="admin-badge" id="admin-role-badge">Admin</span>
+        </div>
+        <button class="admin-logout-btn" id="admin-logout-btn">Çıx →</button>
+      </div>
+
+
+      <!-- Admin Content -->
+      <div class="admin-body">
+
+        <!-- ── DASHBOARD ── -->
+        <div class="admin-panel active" id="admin-panel-dashboard">
+          <div class="admin-stats-grid">
+            <div class="admin-stat-card">
+              <span class="stat-icon">👥</span>
+              <span class="stat-val" id="dash-total-students">—</span>
+              <span class="stat-lbl">Toplam tələbə</span>
+            </div>
+            <div class="admin-stat-card">
+              <span class="stat-icon">🆕</span>
+              <span class="stat-val" id="dash-new-students">—</span>
+              <span class="stat-lbl">Bu həftə yeni</span>
+            </div>
+            <div class="admin-stat-card">
+              <span class="stat-icon">📅</span>
+              <span class="stat-val" id="dash-appointments">—</span>
+              <span class="stat-lbl">Konsultasiya</span>
+            </div>
+            <div class="admin-stat-card">
+              <span class="stat-icon">📁</span>
+              <span class="stat-val" id="dash-docs">—</span>
+              <span class="stat-lbl">Yüklənmiş sənəd</span>
+            </div>
+          </div>
+
+          <p class="admin-section-title">Son qeydiyyatlar</p>
+          <div id="dash-recent-list">
+            <div class="skeleton-card">
+              <div class="skeleton skeleton-line wide"></div>
+              <div class="skeleton skeleton-line narrow"></div>
+            </div>
+            <div class="skeleton-card">
+              <div class="skeleton skeleton-line wide"></div>
+              <div class="skeleton skeleton-line narrow"></div>
+            </div>
+            <div class="skeleton-card">
+              <div class="skeleton skeleton-line wide"></div>
+              <div class="skeleton skeleton-line narrow"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── TƏLƏBƏLƏr ── -->
+        <div class="admin-panel" id="admin-panel-students">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:8px; flex-wrap:wrap;">
+            <p class="admin-section-title" style="margin:0;">Bütün tələbələr</p>
+            <div style="display:flex; gap:6px;">
+              <input id="student-search" type="text" placeholder="🔍 Axtar..."
+                style="border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:12px; font-family:'Inter',sans-serif; color:var(--ink); width:130px;">
+              <button id="export-students-csv" class="admin-action-btn" style="font-size:11px;">⬇ CSV</button>
+            </div>
+          </div>
+          <div id="admin-students-list">
+            <div class="skeleton-card">
+              <div class="skeleton skeleton-line wide"></div>
+              <div class="skeleton skeleton-line narrow"></div>
+            </div>
+            <div class="skeleton-card">
+              <div class="skeleton skeleton-line wide"></div>
+              <div class="skeleton skeleton-line narrow"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── KONSULTASİYALAR ── -->
+        <div class="admin-panel" id="admin-panel-appointments">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:8px; flex-wrap:wrap;">
+            <p class="admin-section-title" style="margin:0;">Bütün görüşlər</p>
+            <button id="export-appointments-csv" class="admin-action-btn" style="font-size:11px;">⬇ CSV</button>
+          </div>
+          <div style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap; align-items:center;">
+            <select id="appt-filter" class="status-select">
+              <option value="all">Hamısı</option>
+              <option value="Fərid Bəy">Fərid Bəy</option>
+              <option value="Ahmet Dolu">Ahmet Dolu</option>
+              <option value="Rəhbərliklə görüş">Rəhbərlik</option>
+            </select>
+            <input id="appt-date-from" type="date" class="status-select" style="cursor:text;" title="Başlanğıc tarix">
+            <span style="font-size:11px; color:var(--ink-soft);">&ndash;</span>
+            <input id="appt-date-to" type="date" class="status-select" style="cursor:text;" title="Son tarix">
+          </div>
+          <div id="admin-appointments-list">
+            <div class="skeleton-card">
+              <div class="skeleton skeleton-line wide"></div>
+              <div class="skeleton skeleton-line narrow"></div>
+            </div>
+            <div class="skeleton-card">
+              <div class="skeleton skeleton-line wide"></div>
+              <div class="skeleton skeleton-line narrow"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── SƏNƏDLƏR ── -->
+        <div class="admin-panel" id="admin-panel-documents">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:8px; flex-wrap:wrap;">
+            <p class="admin-section-title" style="margin:0;">Yüklənmiş sənədlər</p>
+            <div style="display:flex; gap:6px;">
+              <input id="doc-name-filter" type="text" placeholder="🔍 Ad soyad ilə axtar..."
+                style="border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:12px; font-family:'Inter',sans-serif; color:var(--ink); width:150px;">
+              <button id="export-documents-csv" class="admin-action-btn" style="font-size:11px;">⬇ CSV</button>
+            </div>
+          </div>
+          <div id="admin-docs-bulk-bar" style="display:none; align-items:center; justify-content:space-between; gap:8px; background:var(--teal-bg); border-radius:10px; padding:8px 12px; margin-bottom:10px; flex-wrap:wrap;">
+            <span id="admin-docs-bulk-count" style="font-size:12px; font-weight:600; color:var(--navy);"></span>
+            <div style="display:flex; gap:6px;">
+              <button id="admin-docs-bulk-approve" class="admin-action-btn" style="font-size:11px;">✓ Seçilənləri təsdiqlə</button>
+              <button id="admin-docs-bulk-reject" class="admin-action-btn danger" style="font-size:11px;">✗ Seçilənləri rədd et</button>
+            </div>
+          </div>
+          <div id="admin-documents-list">
+            <div class="skeleton-card">
+              <div class="skeleton skeleton-line wide"></div>
+              <div class="skeleton skeleton-line narrow"></div>
+            </div>
+            <div class="skeleton-card">
+              <div class="skeleton skeleton-line wide"></div>
+              <div class="skeleton skeleton-line narrow"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── İŞÇİLƏR (yalnız admin) ── -->
+        <div class="admin-panel" id="admin-panel-staff">
+          <p class="admin-section-title">İşçi heyəti</p>
+
+          <!-- Yeni işçi əlavə et -->
+          <div class="admin-card" style="padding:14px; margin-bottom:14px;">
+            <p style="font-weight:600; font-size:13px; margin:0 0 10px; color:var(--navy);">➕ Yeni işçi əlavə et</p>
+            <div class="admin-field">
+              <label>Ad, soyad və ya email ilə axtar</label>
+              <input type="text" id="new-staff-search" list="staff-search-datalist" autocomplete="off" placeholder="məs. Leyla Məmmədova və ya leyla@biliktedris.az">
+              <datalist id="staff-search-datalist"></datalist>
+            </div>
+            <div class="admin-field">
+              <label>Rol</label>
+              <select id="new-staff-role">
+                <option value="staff">İşçi (Staff)</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div class="admin-confirm-row">
+              <button class="admin-btn-primary" id="add-staff-btn">Əlavə et</button>
+            </div>
+          </div>
+
+          <div id="admin-staff-list">
+            <div class="skeleton-card">
+              <div class="skeleton skeleton-line wide"></div>
+              <div class="skeleton skeleton-line narrow"></div>
+            </div>
+            <div class="skeleton-card">
+              <div class="skeleton skeleton-line wide"></div>
+              <div class="skeleton skeleton-line narrow"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── FƏALİYYƏT QEYDİ (yalnız admin) ── -->
+        <div class="admin-panel" id="admin-panel-audit">
+          <p class="admin-section-title">Son fəaliyyətlər</p>
+          <div id="admin-audit-list">
+            <div class="skeleton-card">
+              <div class="skeleton skeleton-line wide"></div>
+              <div class="skeleton skeleton-line narrow"></div>
+            </div>
+            <div class="skeleton-card">
+              <div class="skeleton skeleton-line wide"></div>
+              <div class="skeleton skeleton-line narrow"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── SƏNƏD ŞABLONLARI ── -->
+        <div class="admin-panel" id="admin-panel-doctemplates">
+          <p class="admin-section-title">Sənəd siyahısı</p>
+          <div class="admin-card" style="padding:14px; margin-bottom:14px;">
+            <p style="font-weight:600; font-size:13px; margin:0 0 10px; color:var(--navy);">➕ Yeni sənəd əlavə et</p>
+            <div class="admin-field">
+              <label>Sənədin adı</label>
+              <input type="text" id="new-doc-name" placeholder="məs. Diplom və qiymət cədvəli">
+            </div>
+            <div class="admin-field">
+              <label>Ölkə (boş buraxsanız — bütün tələbələrə)</label>
+              <select id="new-doc-country"></select>
+            </div>
+            <div class="admin-field">
+              <label>Son tarix (istəyə bağlı)</label>
+              <input type="date" id="new-doc-due">
+            </div>
+            <div class="admin-field">
+              <label>Sıra nömrəsi</label>
+              <input type="number" id="new-doc-order" value="0" min="0">
+            </div>
+            <div class="admin-confirm-row">
+              <button class="admin-btn-primary" id="add-doc-template-btn">Əlavə et</button>
+            </div>
+          </div>
+          <div id="admin-doctemplates-list"></div>
+        </div>
+
+        <!-- ── UNİVERSİTETLƏR ── -->
+        <div class="admin-panel" id="admin-panel-universities">
+          <p class="admin-section-title">Universitet kataloqu</p>
+          <div class="admin-card" style="padding:14px; margin-bottom:14px;">
+            <p style="font-weight:600; font-size:13px; margin:0 0 10px; color:var(--navy);">➕ Yeni universitet əlavə et</p>
+            <div class="admin-field">
+              <label>Ölkə</label>
+              <input type="text" id="new-uni-country" placeholder="məs. Almaniya" list="uni-country-list">
+              <datalist id="uni-country-list"></datalist>
+            </div>
+            <div class="admin-field">
+              <label>Universitetin adı</label>
+              <input type="text" id="new-uni-name" placeholder="məs. TU Berlin">
+            </div>
+            <div class="admin-confirm-row">
+              <button class="admin-btn-primary" id="add-university-btn">Əlavə et</button>
+            </div>
+          </div>
+
+          <div class="admin-card" style="padding:14px; margin-bottom:14px;">
+            <p style="font-size:12px; color:var(--ink-soft); margin:0 0 10px; line-height:1.6;">
+              Baza boşdursa tətbiq daxili siyahıdan istifadə edir. Aşağıdakı düymə ilə həmin
+              siyahını (22 ölkə, 250+ universitet) bir dəfəyə bazaya köçürüb sonra buradan
+              idarə edə bilərsiniz.</p>
+            <div class="admin-confirm-row">
+              <button class="admin-btn-ghost" style="border:1px solid var(--line);" id="seed-universities-btn">
+                Daxili siyahını bazaya köçür</button>
+            </div>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:8px;">
+            <p class="admin-section-title" style="margin:0;">Bazadakı universitetlər</p>
+            <input id="uni-admin-search" type="text" placeholder="🔍 Axtar..."
+              style="border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:12px; font-family:'Inter',sans-serif; color:var(--ink); width:130px;">
+          </div>
+          <div id="admin-universities-list"></div>
+        </div>
+
+        <!-- ── NAİLİYYƏTLƏR ── -->
+        <div class="admin-panel" id="admin-panel-achievements">
+          <p class="admin-section-title">Nailiyyətlərimiz</p>
+          <div class="admin-card" style="padding:14px; margin-bottom:14px;">
+            <p style="font-weight:600; font-size:13px; margin:0 0 10px; color:var(--navy);">➕ Yeni nailiyyət əlavə et</p>
+            <div class="admin-field">
+              <label>Şəkil</label>
+              <input type="file" id="new-achieve-file" accept="image/*">
+            </div>
+            <div class="admin-field">
+              <label>Qısa izah</label>
+              <input type="text" id="new-achieve-caption" placeholder="məs. Ankara Universiteti — Tibb qəbulu, 2026">
+            </div>
+            <div class="admin-field">
+              <label>Sıra nömrəsi</label>
+              <input type="number" id="new-achieve-order" value="0" min="0">
+            </div>
+            <div class="admin-confirm-row">
+              <button class="admin-btn-primary" id="add-achievement-btn">Əlavə et</button>
+            </div>
+          </div>
+          <p class="admin-section-title">Mövcud nailiyyətlər</p>
+          <div id="admin-achievements-list"></div>
+        </div>
+
+        <!-- ── ANALİTİKA ── -->
+        <div class="admin-panel" id="admin-panel-analytics">
+          <p class="admin-section-title">Ümumi göstəricilər</p>
+          <div class="admin-stats-grid">
+            <div class="admin-stat-card">
+              <span class="stat-icon">✅</span>
+              <span class="stat-val" id="an-completion">—</span>
+              <span class="stat-lbl">Profil tamamlama</span>
+            </div>
+            <div class="admin-stat-card">
+              <span class="stat-icon">📈</span>
+              <span class="stat-val" id="an-conversion">—</span>
+              <span class="stat-lbl">Konsultasiyaya keçid</span>
+            </div>
+          </div>
+
+          <p class="admin-section-title">Ən çox seçilən ölkələr</p>
+          <div class="admin-card" style="padding:14px;" id="an-countries"></div>
+
+          <p class="admin-section-title" style="margin-top:14px;">Ən çox seçilən ixtisaslar</p>
+          <div class="admin-card" style="padding:14px;" id="an-fields"></div>
+
+          <p class="admin-section-title" style="margin-top:14px;">Konsultasiya vəziyyəti</p>
+          <div class="admin-card" style="padding:14px;" id="an-consults"></div>
+
+          <p class="admin-section-title" style="margin-top:14px;">Son 6 həftə — yeni qeydiyyat</p>
+          <div class="admin-card" style="padding:14px;" id="an-weekly"></div>
+        </div>
+
+      </div><!-- /admin-body -->
+
+      <!-- Admin Alt Naviqasiya -->
+      <div class="admin-bottom-nav">
+        <button class="admin-navbtn active" data-admin-tab="dashboard">
+          <span class="ic">📊</span><span>İcmal</span>
+        </button>
+        <button class="admin-navbtn" data-admin-tab="students">
+          <span class="ic">👥</span><span>Tələbələr</span>
+        </button>
+        <button class="admin-navbtn" data-admin-tab="appointments">
+          <span class="ic">📅</span><span>Görüşlər</span>
+        </button>
+        <button class="admin-navbtn" data-admin-tab="documents">
+          <span class="ic">📁</span><span>Sənədlər</span>
+        </button>
+        <button class="admin-navbtn" id="admin-more-btn">
+          <span class="ic">⋯</span><span>Daha</span>
+        </button>
+      </div>
+    </div><!-- /admin screen -->
+
+    <!-- ══════════════ MODAL: "Daha" menyusu ══════════════ -->
+    <div class="admin-modal-overlay" id="admin-more-modal">
+      <div class="admin-modal-box">
+        <div class="admin-modal-handle"></div>
+        <p class="admin-modal-title">Daha</p>
+        <button class="admin-more-row" id="admin-more-staff" data-admin-tab="staff">
+          <span class="ic">👨‍💼</span> İşçilər
+        </button>
+        <button class="admin-more-row" id="admin-more-audit" data-admin-tab="audit">
+          <span class="ic">🧾</span> Qeydiyyat
+        </button>
+        <button class="admin-more-row" id="admin-more-doctemplates" data-admin-tab="doctemplates">
+          <span class="ic">📋</span> Sənəd şablonları
+        </button>
+        <button class="admin-more-row" id="admin-more-universities" data-admin-tab="universities">
+          <span class="ic">🎓</span> Universitetlər
+        </button>
+        <button class="admin-more-row" id="admin-more-achievements" data-admin-tab="achievements">
+          <span class="ic">🏆</span> Nailiyyətlər
+        </button>
+        <button class="admin-more-row" id="admin-more-analytics" data-admin-tab="analytics">
+          <span class="ic">📈</span> Analitika
+        </button>
+        <button class="admin-more-row" id="admin-more-announce">
+          <span class="ic">📢</span> Elan göndər
+        </button>
+        <button class="admin-more-row" id="admin-more-view-as-student">
+          <span class="ic">👁️</span> Tələbə kimi bax
+        </button>
+        <button class="admin-more-row danger" id="admin-more-logout">
+          <span class="ic">↩</span> Hesabdan çıx
+        </button>
+        <div class="admin-divider"></div>
+        <button class="admin-btn-ghost" style="width:100%; padding:11px; border-radius:10px; border:1px solid var(--line); font-family:'Inter',sans-serif; font-size:13px; cursor:pointer;" id="admin-more-close">Bağla</button>
+      </div>
+    </div>
+
+    <!-- ══════════════ MODAL: Bildirişlər ══════════════ -->
+    <div class="admin-modal-overlay" id="notif-modal">
+      <div class="admin-modal-box">
+        <div class="admin-modal-handle"></div>
+        <p class="admin-modal-title" data-i18n="notifications">Bildirişlər</p>
+        <div id="notif-list"></div>
+        <div class="admin-divider"></div>
+        <button class="admin-btn-ghost" style="width:100%; padding:11px; border-radius:10px; border:1px solid var(--line); font-family:'Inter',sans-serif; font-size:13px; cursor:pointer;" id="notif-close-btn" data-i18n="close">Bağla</button>
+      </div>
+    </div>
+
+    <!-- ══════════════ MODAL: Bütün tələbələrə elan ══════════════ -->
+    <div class="admin-modal-overlay" id="announce-modal">
+      <div class="admin-modal-box">
+        <div class="admin-modal-handle"></div>
+        <p class="admin-modal-title">Bütün tələbələrə elan</p>
+        <p style="font-size:12px; color:var(--ink-soft); margin:-6px 0 12px; line-height:1.5;">Yazdığın mesaj bütün tələbələrin bildiriş zəngində görünəcək.</p>
+        <div class="admin-field">
+          <textarea id="announce-text" rows="4" placeholder="məs. Sabah saat 10:00-dan Bakı filialında qəbul dayandırılır."
+            style="width:100%; border:1px solid var(--line); border-radius:10px; padding:10px; font-family:'Inter',sans-serif; font-size:13px; color:var(--ink); resize:vertical;"></textarea>
+        </div>
+        <div class="admin-confirm-row">
+          <button class="admin-btn-ghost" id="announce-cancel-btn">Ləğv et</button>
+          <button class="admin-btn-primary" id="announce-send-btn">Göndər</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ MODAL: Tələbə Detalları ══════════════ -->
+    <div class="admin-modal-overlay" id="student-modal">
+      <div class="admin-modal-box">
+        <div class="admin-modal-handle"></div>
+        <p class="admin-modal-title" id="modal-student-name">Tələbə</p>
+        <div id="modal-student-body"></div>
+        <div class="admin-divider"></div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <a id="modal-email-link" href="#"
+            style="flex:1; text-align:center; background:var(--teal); color:#fff; padding:10px; border-radius:10px; font-size:13px; font-weight:500; text-decoration:none; font-family:'Inter',sans-serif;">✉️
+            Email göndər</a>
+          <button class="admin-btn-primary" style="flex:1; padding:10px; border-radius:10px; border:none; font-family:'Inter',sans-serif; font-size:13px; font-weight:500; cursor:pointer;"
+            id="modal-print-btn">🖨️ PDF / Çap</button>
+          <button class="admin-btn-ghost" style="flex:1 1 100%; border:1px solid var(--line); padding:10px; border-radius:10px; font-family:'Inter',sans-serif; font-size:13px; cursor:pointer;"
+            id="modal-close-btn">Bağla</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ MODAL: Konsultasiya Detalları ══════════════ -->
+    <div class="admin-modal-overlay" id="appt-modal">
+      <div class="admin-modal-box">
+        <div class="admin-modal-handle"></div>
+        <p class="admin-modal-title" id="modal-appt-title">Görüş detalları</p>
+        <div id="modal-appt-body"></div>
+
+        <div id="appt-reject-form" style="display:none; margin-top:4px;">
+          <div class="admin-field" style="margin-bottom:8px;">
+            <label>Alternativ təklif (tələbəyə göstəriləcək)</label>
+            <textarea id="appt-reject-note" rows="3" placeholder="məs. Bu saat üçün yerimiz yoxdur, sabah saat 15:00-a gələ bilərsinizmi?"
+              style="width:100%; padding:9px 11px; border:1px solid var(--line); border-radius:9px; font-family:'Inter',sans-serif; font-size:13px; color:var(--ink); resize:vertical;"></textarea>
+          </div>
+        </div>
+
+        <div class="admin-divider"></div>
+        <div class="admin-confirm-row" id="appt-modal-actions">
+          <button class="admin-btn-primary" id="appt-modal-confirm-btn">✓ Təsdiqlə</button>
+          <button class="admin-btn-danger" id="appt-modal-reject-btn">✗ Rədd et</button>
+          <button class="admin-btn-ghost" id="appt-modal-close-btn" style="border:1px solid var(--line);">Bağla</button>
+        </div>
+        <div class="admin-confirm-row" id="appt-reject-actions" style="display:none;">
+          <button class="admin-btn-danger" id="appt-reject-send-btn">Rəddi göndər</button>
+          <button class="admin-btn-ghost" id="appt-reject-cancel-btn" style="border:1px solid var(--line);">Geri</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ MODAL: İşçi Sil ══════════════ -->
+    <div class="admin-modal-overlay" id="staff-delete-modal">
+      <div class="admin-modal-box">
+        <div class="admin-modal-handle"></div>
+        <p class="admin-modal-title">İşçini sil</p>
+        <p style="font-size:13px; color:var(--ink-soft); margin:0 0 12px;" id="staff-delete-text">Bu işçini silmək
+          istədiyinizə əminsinizmi?</p>
+        <div class="admin-confirm-row">
+          <button class="admin-btn-danger" id="staff-delete-confirm-btn">Sil</button>
+          <button class="admin-btn-ghost" id="staff-delete-cancel-btn" style="border:1px solid var(--line);">Ləğv
+            et</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ BOTTOM NAVBAR ══════════════ -->
+    <div class="navbar" id="navbar">
+      <button class="navbtn active" data-target="home">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M3 11l9-7 9 7v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z" />
+        </svg><span data-i18n="nav_home">Əsas</span>
+      </button>
+      <button class="navbtn" data-target="onboarding">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+        </svg><span data-i18n="nav_form">Formu doldur</span>
+      </button>
+      <button class="navbtn" data-target="unis">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M3 9.5L12 4l9 5.5-9 5.5-9-5.5z" />
+          <path d="M6.5 11.5V17c0 1 2.5 2.5 5.5 2.5s5.5-1.5 5.5-2.5v-5.5" />
+        </svg><span data-i18n="nav_unis">Universitet</span>
+      </button>
+      <button class="navbtn" data-target="docs">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M7 3h7l5 5v13a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1z" />
+          <path d="M9 12h6M9 16h6" />
+        </svg><span data-i18n="nav_docs">Sənədlər</span>
+      </button>
+      <button class="navbtn" data-target="consult">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="12" cy="8" r="3" />
+          <path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" />
+        </svg><span data-i18n="nav_consult">Konsult.</span>
+      </button>
+      <button class="navbtn" data-target="profile">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="12" cy="8" r="3.2" />
+          <path d="M4.5 20a7.5 7.5 0 0115 0" />
+        </svg><span data-i18n="nav_profile">Profil</span>
+      </button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+
+</body>
+
+</html>
