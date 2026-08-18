@@ -398,12 +398,17 @@
           }
           const isConfirmed = c.status === 'confirmed';
           const when = c.updated_at ? new Date(c.updated_at).toLocaleDateString('az-AZ') : '';
+          const confirmedSentence = t('notif_confirmed_tpl', '{date} tarixində saat {time}-da {advisor} ilə görüşəcəksiniz')
+            .replace('{date}', c.date).replace('{time}', c.time).replace('{advisor}', c.advisor_name);
           return `
           <div class="admin-card-row" style="align-items:flex-start; gap:10px;">
             <span style="font-size:18px; flex-shrink:0; margin-top:1px;">${isConfirmed ? '✅' : '❗'}</span>
             <div class="admin-card-row-info">
-              <p class="admin-row-name">${isConfirmed ? 'Görüş təsdiqləndi' : 'Görüş rədd edildi'}</p>
-              <p class="admin-row-sub">${escapeHtml(c.advisor_name)} · ${escapeHtml(c.date)} saat ${escapeHtml(c.time)} · ${when}</p>
+              <p class="admin-row-name">${isConfirmed ? escapeHtml(t('notif_confirmed_title', 'Görüşünüz təsdiqləndi')) : 'Görüş rədd edildi'}</p>
+              ${isConfirmed
+              ? `<p class="admin-row-sub">${escapeHtml(confirmedSentence)}</p>`
+              : `<p class="admin-row-sub">${escapeHtml(c.advisor_name)} · ${escapeHtml(c.date)} saat ${escapeHtml(c.time)} · ${when}</p>`
+            }
               ${!isConfirmed && c.admin_note ? `<p style="font-size:12px; color:var(--ink-soft); margin:5px 0 0; line-height:1.5;"><b style="color:var(--coral);">Təklif:</b> ${escapeHtml(c.admin_note)}</p>` : ''}
             </div>
           </div>`;
@@ -419,6 +424,23 @@
     document.getElementById('notif-close-btn')?.addEventListener('click', () => closeModal('notif-modal'));
     document.getElementById('notif-modal')?.addEventListener('click', (e) => {
       if (e.target === e.currentTarget) closeModal('notif-modal');
+    });
+
+    // Ev ekranındakı "Əməkdaşlar / Xidmətlər / Nailiyyətlər" kartları — basanda
+    // müvafiq məlumat modalda açılır (bax: haqqımızda ekranından bura köçürülüb).
+    [
+      ['home-card-partner-unis', 'partner-unis-modal', loadPartnerUniversities],
+      ['home-card-services', 'services-modal', loadServices],
+      ['home-card-achievements', 'achievements-modal', loadAchievements]
+    ].forEach(([cardId, modalId, loadFn]) => {
+      document.getElementById(cardId)?.addEventListener('click', () => {
+        openModal(modalId);
+        loadFn();
+      });
+      document.getElementById(modalId + '-close')?.addEventListener('click', () => closeModal(modalId));
+      document.getElementById(modalId)?.addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) closeModal(modalId);
+      });
     });
 
     // Tələbənin öz görüşlərinin tam siyahısı (Konsultasiya ekranı) + ləğv etmə
@@ -2257,6 +2279,12 @@
         srv_math_sub: '& Olimpiada',
         srv_higher_math: 'Ali Riyaziyyat',
         srv_higher_math_sub: '& Fizika',
+        home_card_partners_title: 'Əməkdaşlar',
+        home_card_partners_sub: 'Universitetlər',
+        home_card_services_title: 'Xidmətlər',
+        home_card_services_sub: 'Qiymətlə',
+        home_card_achieve_title: 'Nailiyyətlər',
+        home_card_achieve_sub: 'Uğurlarımız',
         stat_unis: 'Seçilmiş universitet',
         stat_docs: 'Tamamlanmış sənəd',
         stat_consults: 'Planlaşan konsultasiya',
@@ -2358,6 +2386,8 @@
         // Notifications
         notifications: 'Bildirişlər',
         notif_announcement_title: 'Mərkəzdən elan',
+        notif_confirmed_title: 'Görüşünüz təsdiqləndi',
+        notif_confirmed_tpl: '{date} tarixində saat {time}-da {advisor} ilə görüşəcəksiniz',
         notif_reminder_title: 'Yaxınlaşan görüş',
         notif_reminder_hours_tpl: '{hours} saat qalıb',
         close: 'Bağla',
@@ -2462,6 +2492,12 @@
         srv_math_sub: '& Olympiad',
         srv_higher_math: 'Higher Math',
         srv_higher_math_sub: '& Physics',
+        home_card_partners_title: 'Partners',
+        home_card_partners_sub: 'Universities',
+        home_card_services_title: 'Services',
+        home_card_services_sub: 'With pricing',
+        home_card_achieve_title: 'Achievements',
+        home_card_achieve_sub: 'Our success',
         stat_unis: 'Selected university',
         stat_docs: 'Completed document',
         stat_consults: 'Planned consultation',
@@ -2554,6 +2590,8 @@
         nav_docs: 'Documents', nav_consult: 'Consult.', nav_profile: 'Profile',
         notifications: 'Notifications',
         notif_announcement_title: 'Announcement',
+        notif_confirmed_title: 'Your meeting is confirmed',
+        notif_confirmed_tpl: 'You will meet with {advisor} on {date} at {time}',
         notif_reminder_title: 'Upcoming meeting',
         notif_reminder_hours_tpl: '{hours}h left',
         close: 'Close',
@@ -2656,6 +2694,12 @@
         srv_math_sub: '& Олимпиада',
         srv_higher_math: 'Высшая математика',
         srv_higher_math_sub: '& Физика',
+        home_card_partners_title: 'Партнёры',
+        home_card_partners_sub: 'Университеты',
+        home_card_services_title: 'Услуги',
+        home_card_services_sub: 'С ценами',
+        home_card_achieve_title: 'Достижения',
+        home_card_achieve_sub: 'Наши успехи',
         stat_unis: 'Выбранный университет',
         stat_docs: 'Завершённый документ',
         stat_consults: 'Запланир. консультация',
@@ -2748,6 +2792,8 @@
         nav_docs: 'Документы', nav_consult: 'Консульт.', nav_profile: 'Профиль',
         notifications: 'Уведомления',
         notif_announcement_title: 'Объявление центра',
+        notif_confirmed_title: 'Ваша встреча подтверждена',
+        notif_confirmed_tpl: 'Вы встретитесь с {advisor} {date} в {time}',
         notif_reminder_title: 'Скоро встреча',
         notif_reminder_hours_tpl: 'осталось {hours} ч.',
         close: 'Закрыть',
@@ -2850,6 +2896,12 @@
         srv_math_sub: '& Olimpiyat',
         srv_higher_math: 'Yüksek Matematik',
         srv_higher_math_sub: '& Fizik',
+        home_card_partners_title: 'Ortaklar',
+        home_card_partners_sub: 'Üniversiteler',
+        home_card_services_title: 'Hizmetler',
+        home_card_services_sub: 'Fiyatlarla',
+        home_card_achieve_title: 'Başarılar',
+        home_card_achieve_sub: 'Başarılarımız',
         stat_unis: 'Seçilen üniversite',
         stat_docs: 'Tamamlanan belge',
         stat_consults: 'Planlanan danışmanlık',
@@ -2942,6 +2994,8 @@
         nav_docs: 'Belgeler', nav_consult: 'Danışm.', nav_profile: 'Profil',
         notifications: 'Bildirimler',
         notif_announcement_title: 'Merkezden duyuru',
+        notif_confirmed_title: 'Görüşmeniz onaylandı',
+        notif_confirmed_tpl: '{date} tarihinde saat {time}\'de {advisor} ile görüşeceksiniz',
         notif_reminder_title: 'Yaklaşan görüşme',
         notif_reminder_hours_tpl: '{hours} saat kaldı',
         close: 'Kapat',
