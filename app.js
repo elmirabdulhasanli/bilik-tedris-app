@@ -370,11 +370,36 @@
       }));
     }
 
+    let trialExamRegSchemaOk = true;
+    async function fetchTrialExamNotifications() {
+      if (!sb || !currentEmail || !trialExamRegSchemaOk) return [];
+      const { data, error } = await sb.from('trial_exam_registrations')
+        .select('*, trial_exams(name)')
+        .eq('student_email', currentEmail)
+        .order('updated_at', { ascending: false })
+        .limit(10);
+      if (error) {
+        trialExamRegSchemaOk = false;
+        console.warn('Sınaq imtahanı qeydiyyatları cədvəli tapılmadı — supabase-security-setup.sql faylını yenidən icra edin:', error.message);
+        return [];
+      }
+      return (data || []).map(r => ({
+        id: `trialexamreg-${r.id}`,
+        status: 'trialexam_reg',
+        exam_name: (r.trial_exams && r.trial_exams.name) || '—',
+        payment_status: r.payment_status,
+        correct_count: r.correct_count,
+        wrong_count: r.wrong_count,
+        total_questions: r.total_questions,
+        updated_at: r.updated_at
+      }));
+    }
+
     async function buildNotifCache() {
-      const [list, announcements, examResults] = await Promise.all([fetchNotifications(), fetchAnnouncements(), fetchExamResults()]);
+      const [list, announcements, examResults, trialExamRegs] = await Promise.all([fetchNotifications(), fetchAnnouncements(), fetchExamResults(), fetchTrialExamNotifications()]);
       const reminder = getUpcomingConsultReminder();
       const merged = reminder ? [reminder, ...list] : list;
-      return [...announcements, ...examResults, ...merged];
+      return [...announcements, ...examResults, ...trialExamRegs, ...merged];
     }
 
     async function refreshNotifBadge() {
@@ -433,6 +458,27 @@
               </div>
             </div>`;
           }
+          if (c.status === 'trialexam_reg') {
+            const when = c.updated_at ? new Date(c.updated_at).toLocaleDateString('az-AZ') : '';
+            const isPaid = c.payment_status === 'ödənilib';
+            const hasResult = c.total_questions !== null && c.total_questions !== undefined;
+            const title = hasResult
+              ? t('notif_trialexam_result_title', 'Sınaq nəticəniz hazırdır')
+              : (isPaid
+                ? t('notif_trialexam_paid_title', 'Sınaq ödənişiniz təsdiqləndi')
+                : t('notif_trialexam_pending_title', 'Sınaq qeydiyyatınız qəbul edildi'));
+            const resultLine = hasResult ? trialExamResultLine(c) : '';
+            return `
+            <div class="admin-card-row" style="align-items:flex-start; gap:10px;">
+              <span style="font-size:18px; flex-shrink:0; margin-top:1px;">🎯</span>
+              <div class="admin-card-row-info">
+                <p class="admin-row-name">${escapeHtml(title)}</p>
+                <p class="admin-row-sub">${escapeHtml(c.exam_name)}</p>
+                ${resultLine ? `<p class="admin-row-sub" style="color:var(--teal); font-weight:600;">${escapeHtml(resultLine)}</p>` : ''}
+                <p style="font-size:11px; color:var(--ink-soft); margin:3px 0 0;">${when}</p>
+              </div>
+            </div>`;
+          }
           const isConfirmed = c.status === 'confirmed';
           const when = c.updated_at ? new Date(c.updated_at).toLocaleDateString('az-AZ') : '';
           const confirmedSentence = t('notif_confirmed_tpl', '{date} tarixində saat {time}-da {advisor} ilə görüşəcəksiniz')
@@ -470,7 +516,8 @@
       ['home-card-services', 'services-modal', loadServices],
       ['home-card-achievements', 'achievements-modal', loadAchievements],
       ['home-card-team', 'team-modal', loadTeamMembers],
-      ['home-card-news', 'news-modal', loadNews]
+      ['home-card-news', 'news-modal', loadNews],
+      ['home-card-trialexams', 'trialexams-modal', loadTrialExams]
     ].forEach(([cardId, modalId, loadFn]) => {
       document.getElementById(cardId)?.addEventListener('click', () => {
         openModal(modalId);
@@ -1118,6 +1165,26 @@
       } else {
         consultEl.textContent = t('parent_view_none', 'Hələ seçilməyib');
       }
+
+      const trialExams = Array.isArray(data.trial_exams) ? data.trial_exams : [];
+      const trialExamsCard = document.getElementById('parent-view-trialexams-card');
+      if (trialExams.length) {
+        trialExamsCard.style.display = 'block';
+        document.getElementById('parent-view-trialexams-list').innerHTML = trialExams.map(ex => {
+          const isPaid = ex.payment_status === 'ödənilib';
+          const resultLine = trialExamResultLine(ex);
+          return `
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+            <div style="min-width:0;">
+              <p style="font-size:13px; font-weight:600; color:var(--ink); margin:0;">${escapeHtml(ex.exam_name)}</p>
+              ${resultLine ? `<p style="font-size:12px; color:var(--teal); font-weight:600; margin:2px 0 0;">${escapeHtml(resultLine)}</p>` : ''}
+            </div>
+            <span style="font-size:11px; font-weight:600; color:${isPaid ? 'var(--teal)' : 'var(--gold-deep)'}; background:${isPaid ? 'var(--teal-bg)' : 'var(--surface-2)'}; padding:3px 9px; border-radius:100px; white-space:nowrap; flex-shrink:0;">${isPaid ? escapeHtml(t('trialexams_paid', 'Ödənilib')) : escapeHtml(t('trialexams_pending', 'Gözlənilir'))}</span>
+          </div>`;
+        }).join('');
+      } else {
+        trialExamsCard.style.display = 'none';
+      }
     }
 
     async function loadNews() {
@@ -1147,6 +1214,234 @@
         </div>`;
       }).join('');
     }
+
+    // Tələbə ödənişli sınaq imtahanları kataloqunu görür və qeydiyyatdan keçir.
+    // Ödəniş nağd/bank köçürməsi ilə OFFLINE aparılır, admin panelindən statusu
+    // əl ilə "ödənilib" edir — burada kart ödənişi YOXDUR.
+    async function loadTrialExams() {
+      const listEl = document.getElementById('trialexams-list');
+      const emptyEl = document.getElementById('trialexams-empty');
+      if (!listEl || !sb) return;
+
+      const { data, error } = await sb.from('trial_exams')
+        .select('*')
+        .eq('active', true)
+        .order('sort_order', { ascending: true })
+        .order('id', { ascending: true });
+
+      if (error || !data || !data.length) {
+        listEl.innerHTML = '';
+        if (emptyEl) emptyEl.style.display = 'block';
+        return;
+      }
+      if (emptyEl) emptyEl.style.display = 'none';
+
+      let regByExam = {};
+      if (currentEmail) {
+        const { data: regs } = await sb.from('trial_exam_registrations')
+          .select('*')
+          .eq('student_email', currentEmail);
+        (regs || []).forEach(r => { regByExam[r.trial_exam_id] = r; });
+      }
+
+      listEl.innerHTML = data.map(ex => {
+        const reg = regByExam[ex.id];
+        let actionHtml;
+        if (!reg) {
+          actionHtml = `<button class="admin-btn-primary trialexam-register-btn" data-id="${ex.id}" style="padding:7px 14px; font-size:12px;">${escapeHtml(t('trialexams_register', 'Qeydiyyatdan keç'))}</button>`;
+        } else if (reg.payment_status === 'ödənilib') {
+          const alreadyTaken = reg.total_questions !== null && reg.total_questions !== undefined;
+          actionHtml = alreadyTaken
+            ? `<span style="font-size:11px; font-weight:600; color:var(--teal); background:var(--teal-bg); padding:4px 10px; border-radius:100px; white-space:nowrap;">✓ ${escapeHtml(t('trialexams_paid', 'Ödənilib'))}</span>`
+            : `<button class="admin-btn-primary trialexam-start-btn" data-exam-id="${ex.id}" data-exam-name="${escapeHtml(ex.name)}" style="padding:7px 14px; font-size:12px;">🎯 ${escapeHtml(t('trialexams_start', 'Sınağa başla'))}</button>`;
+        } else {
+          actionHtml = `
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:11px; font-weight:600; color:var(--gold-deep); background:var(--surface-2); padding:4px 10px; border-radius:100px; white-space:nowrap;">${escapeHtml(t('trialexams_pending', 'Gözlənilir'))}</span>
+              <button class="admin-action-btn danger trialexam-cancel-btn" data-reg-id="${reg.id}" style="font-size:11px;">${escapeHtml(t('trialexams_cancel', 'Ləğv et'))}</button>
+            </div>`;
+        }
+        const resultLine = reg ? trialExamResultLine(reg) : '';
+        return `
+        <div>
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <p style="font-size:13px; font-weight:600; color:var(--ink); margin:0;">${escapeHtml(ex.name)}</p>
+            ${ex.price_text ? `<span style="flex-shrink:0; background:var(--teal-bg); color:var(--teal); font-weight:600; font-size:11px; padding:2px 8px; border-radius:100px; white-space:nowrap;">${escapeHtml(ex.price_text)}</span>` : ''}
+          </div>
+          ${ex.description ? `<p style="font-size:12px; color:var(--ink-soft); margin:4px 0 6px; line-height:1.5;">${escapeHtml(ex.description)}</p>` : ''}
+          ${resultLine ? `<p style="font-size:12px; color:var(--teal); font-weight:600; margin:4px 0 0;">🎯 ${escapeHtml(resultLine)}</p>` : ''}
+          <div style="display:flex; justify-content:flex-end; margin-top:6px;">${actionHtml}</div>
+        </div>`;
+      }).join('<div class="admin-divider" style="margin:4px 0;"></div>');
+
+      listEl.querySelectorAll('.trialexam-register-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!sb || !currentEmail) return;
+          btn.disabled = true; btn.textContent = '...';
+          const { error } = await sb.from('trial_exam_registrations')
+            .insert({ trial_exam_id: parseInt(btn.dataset.id, 10), student_email: currentEmail });
+          if (error) { toast('Xəta: ' + error.message, true); loadTrialExams(); return; }
+          toast('✓ ' + t('trialexams_registered_toast', 'Qeydiyyatdan keçdiniz'));
+          loadTrialExams();
+        });
+      });
+      listEl.querySelectorAll('.trialexam-cancel-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!sb) return;
+          if (!confirm(t('trialexams_cancel_confirm', 'Qeydiyyatı ləğv etmək istədiyinizə əminsiniz?'))) return;
+          await sb.from('trial_exam_registrations').delete().eq('id', btn.dataset.regId);
+          toast('✓ ' + t('trialexams_cancelled_toast', 'Ləğv edildi'));
+          loadTrialExams();
+        });
+      });
+      listEl.querySelectorAll('.trialexam-start-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          closeModal('trialexams-modal');
+          startTrialExam(parseInt(btn.dataset.examId, 10), btn.dataset.examName);
+        });
+      });
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       SINAQ HƏLLİ — tam interaktiv sual-cavab axını (tələbə)
+       ──────────────────────────────────────────────────────────
+       Suallar get_trial_exam_questions() ilə (doğru cavab OLMADAN)
+       gətirilir, cavablar submit_trial_exam_answers() ilə göndərilir —
+       yoxlama tamamilə serverdə olur, doğru cavab heç vaxt brauzerə
+       ötürülmür.
+    ═══════════════════════════════════════════════════════════ */
+    let quizState = null;
+
+    async function startTrialExam(examId, examName) {
+      document.getElementById('navbar').style.display = 'none';
+      showScreen('trialexam-take');
+      document.getElementById('trialexam-take-exam-name').textContent = examName || '—';
+      document.getElementById('trialexam-take-body').style.display = 'none';
+      document.getElementById('trialexam-take-empty').style.display = 'none';
+      document.getElementById('trialexam-take-blocked').style.display = 'none';
+      document.getElementById('trialexam-take-result').style.display = 'none';
+
+      if (!sb) return;
+      const { data, error } = await sb.rpc('get_trial_exam_questions', { p_trial_exam_id: examId });
+
+      if (error || !data) {
+        document.getElementById('trialexam-take-blocked-title').textContent = t('trialexams_error_title', 'Xəta baş verdi');
+        document.getElementById('trialexam-take-blocked-sub').textContent = t('trialexams_error_sub', 'Bir az sonra yenidən cəhd edin.');
+        document.getElementById('trialexam-take-blocked').style.display = 'block';
+        return;
+      }
+      if (data.error === 'not_eligible') {
+        document.getElementById('trialexam-take-blocked-title').textContent = t('trialexams_not_eligible_title', 'Bu sınağa hələ girişiniz yoxdur');
+        document.getElementById('trialexam-take-blocked-sub').textContent = t('trialexams_not_eligible_sub', 'Ödəniş təsdiqləndikdən sonra sınağa başlaya biləcəksiniz.');
+        document.getElementById('trialexam-take-blocked').style.display = 'block';
+        return;
+      }
+      if (data.error === 'already_taken') {
+        document.getElementById('trialexam-take-blocked-title').textContent = t('trialexams_already_taken_title', 'Bu sınağı artıq vermisiniz');
+        document.getElementById('trialexam-take-blocked-sub').textContent = t('trialexams_already_taken_sub', 'Nəticənizi "Sınaqlar" bölməsində görə bilərsiniz.');
+        document.getElementById('trialexam-take-blocked').style.display = 'block';
+        return;
+      }
+      const questions = Array.isArray(data.questions) ? data.questions : [];
+      if (!questions.length) {
+        document.getElementById('trialexam-take-empty').style.display = 'block';
+        return;
+      }
+
+      quizState = { registrationId: data.registration_id, questions, currentIndex: 0, answers: {} };
+      document.getElementById('trialexam-take-body').style.display = 'block';
+      renderQuizQuestion();
+    }
+
+    function exitTrialExam() {
+      quizState = null;
+      document.getElementById('navbar').style.display = 'flex';
+      showScreen('home');
+      loadTrialExams();
+    }
+
+    function renderQuizQuestion() {
+      if (!quizState) return;
+      const { questions, currentIndex, answers } = quizState;
+      const q = questions[currentIndex];
+      const total = questions.length;
+
+      document.getElementById('trialexam-take-progress').textContent = `${currentIndex + 1}/${total}`;
+      document.getElementById('trialexam-take-progress-fill').style.width = Math.round(((currentIndex + 1) / total) * 100) + '%';
+
+      const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
+      const selected = answers[q.id];
+      const optionsHtml = (q.options || []).map((opt, i) => `
+        <div class="quiz-option ${selected === i ? 'sel' : ''}" data-index="${i}">
+          <span class="quiz-option-letter">${letters[i] || (i + 1)}</span>
+          <span>${escapeHtml(opt)}</span>
+        </div>`).join('');
+
+      document.getElementById('trialexam-take-question-area').innerHTML = `
+        <p style="font-size:15px; font-weight:600; color:var(--ink); margin:0 0 16px; line-height:1.5;">${escapeHtml(q.question_text)}</p>
+        ${optionsHtml}`;
+
+      document.querySelectorAll('#trialexam-take-question-area .quiz-option').forEach(el => {
+        el.addEventListener('click', () => {
+          quizState.answers[q.id] = parseInt(el.dataset.index, 10);
+          renderQuizQuestion();
+        });
+      });
+
+      document.getElementById('trialexam-take-prev-btn').style.visibility = currentIndex === 0 ? 'hidden' : 'visible';
+      const isLast = currentIndex === total - 1;
+      document.getElementById('trialexam-take-next-btn').style.display = isLast ? 'none' : 'block';
+      document.getElementById('trialexam-take-submit-btn').style.display = isLast ? 'block' : 'none';
+    }
+
+    document.getElementById('trialexam-take-prev-btn')?.addEventListener('click', () => {
+      if (!quizState || quizState.currentIndex === 0) return;
+      quizState.currentIndex--;
+      renderQuizQuestion();
+    });
+    document.getElementById('trialexam-take-next-btn')?.addEventListener('click', () => {
+      if (!quizState || quizState.currentIndex >= quizState.questions.length - 1) return;
+      quizState.currentIndex++;
+      renderQuizQuestion();
+    });
+    document.getElementById('trialexam-take-submit-btn')?.addEventListener('click', async () => {
+      if (!quizState || !sb) return;
+      const unanswered = quizState.questions.filter(q => quizState.answers[q.id] === undefined).length;
+      const confirmMsg = unanswered
+        ? t('trialexams_submit_confirm_unanswered', '{n} suala cavab verməmisiniz. Yenə də təqdim etmək istəyirsiniz?').replace('{n}', unanswered)
+        : t('trialexams_submit_confirm', 'Sınağı təqdim etdikdən sonra sualları yenidən görə bilməyəcəksiniz. Əminsiniz?');
+      if (!confirm(confirmMsg)) return;
+
+      const btn = document.getElementById('trialexam-take-submit-btn');
+      btn.disabled = true; btn.textContent = '...';
+      const p_answers = quizState.questions.map(q => ({
+        question_id: q.id,
+        selected_index: quizState.answers[q.id] === undefined ? -1 : quizState.answers[q.id]
+      }));
+      const { data, error } = await sb.rpc('submit_trial_exam_answers', {
+        p_registration_id: quizState.registrationId,
+        p_answers
+      });
+      btn.disabled = false; btn.textContent = t('trialexams_submit', 'Təqdim et');
+
+      if (error || !data || data.error) {
+        toast(t('trialexams_error_sub', 'Bir az sonra yenidən cəhd edin.'), true);
+        return;
+      }
+
+      document.getElementById('trialexam-take-body').style.display = 'none';
+      const pct = data.total_questions ? Math.round((data.correct_count / data.total_questions) * 100) : 0;
+      document.getElementById('trialexam-take-result-pct').textContent = pct + '%';
+      document.getElementById('trialexam-take-result-detail').textContent =
+        `${data.correct_count}/${data.total_questions} ${t('trialexams_correct_short', 'doğru')}${data.wrong_count !== null ? ', ' + data.wrong_count + ' ' + t('trialexams_wrong_short', 'səhv') : ''}`;
+      document.getElementById('trialexam-take-result').style.display = 'block';
+      quizState = null;
+    });
+
+    document.getElementById('trialexam-take-exit-btn')?.addEventListener('click', exitTrialExam);
+    document.getElementById('trialexam-take-empty-back-btn')?.addEventListener('click', exitTrialExam);
+    document.getElementById('trialexam-take-blocked-back-btn')?.addEventListener('click', exitTrialExam);
+    document.getElementById('trialexam-take-done-btn')?.addEventListener('click', exitTrialExam);
 
     let selCountries = [], selUnis = [], selFields = [];
 
@@ -1192,6 +1487,7 @@
     loadTeamMembers();
     loadPartnerUniversities();
     loadNews();
+    loadTrialExams();
 
     // Valideyn linki ilə açılıbsa (?parent=TOKEN), splash/login əvəzinə
     // birbaşa yalnız-oxu görünüşü göstər.
@@ -2377,6 +2673,37 @@
         home_card_team_sub: 'Müəllimlər',
         home_card_news_title: 'Xəbərlər',
         home_card_news_sub: 'Elanlar',
+        home_card_trialexams_title: 'Sınaqlar',
+        home_card_trialexams_sub: 'Ödənişli',
+        trialexams_title: 'Ödənişli Sınaq İmtahanları',
+        trialexams_empty: 'Hələ sınaq imtahanı əlavə olunmayıb.',
+        trialexams_register: 'Qeydiyyatdan keç',
+        trialexams_paid: 'Ödənilib',
+        trialexams_pending: 'Gözlənilir',
+        trialexams_cancel: 'Ləğv et',
+        trialexams_registered_toast: 'Qeydiyyatdan keçdiniz',
+        trialexams_cancelled_toast: 'Ləğv edildi',
+        trialexams_cancel_confirm: 'Qeydiyyatı ləğv etmək istədiyinizə əminsiniz?',
+        trialexams_start: 'Sınağa başla',
+        trialexams_exit: 'Çıx',
+        trialexams_prev: 'Geri',
+        trialexams_next: 'İrəli',
+        trialexams_submit: 'Təqdim et',
+        trialexams_no_questions_title: 'Suallar hazır deyil',
+        trialexams_no_questions_sub: 'Bu sınaq üçün hələ sual əlavə olunmayıb. Mərkəzlə əlaqə saxlayın.',
+        trialexams_not_eligible_title: 'Bu sınağa hələ girişiniz yoxdur',
+        trialexams_not_eligible_sub: 'Ödəniş təsdiqləndikdən sonra sınağa başlaya biləcəksiniz.',
+        trialexams_already_taken_title: 'Bu sınağı artıq vermisiniz',
+        trialexams_already_taken_sub: 'Nəticənizi "Sınaqlar" bölməsində görə bilərsiniz.',
+        trialexams_error_title: 'Xəta baş verdi',
+        trialexams_error_sub: 'Bir az sonra yenidən cəhd edin.',
+        trialexams_submit_confirm: 'Sınağı təqdim etdikdən sonra sualları yenidən görə bilməyəcəksiniz. Əminsiniz?',
+        trialexams_submit_confirm_unanswered: '{n} suala cavab verməmisiniz. Yenə də təqdim etmək istəyirsiniz?',
+        notif_trialexam_paid_title: 'Sınaq ödənişiniz təsdiqləndi',
+        notif_trialexam_pending_title: 'Sınaq qeydiyyatınız qəbul edildi',
+        notif_trialexam_result_title: 'Sınaq nəticəniz hazırdır',
+        trialexams_correct_short: 'doğru',
+        trialexams_wrong_short: 'səhv',
         stat_unis: 'Seçilmiş universitet',
         stat_docs: 'Tamamlanmış sənəd',
         stat_consults: 'Planlaşan konsultasiya',
@@ -2490,6 +2817,7 @@
         parent_view_doc_tpl: '{done}/{total} sənəd hazırdır',
         parent_view_countries: 'Hədəf ölkələr',
         parent_view_consult: 'Növbəti konsultasiya',
+        parent_view_trialexams: 'Sınaq imtahanları',
         parent_view_footer: 'Bu, yalnız-oxu görünüşdür — Bilik Tədris Mərkəzi tərəfindən paylaşılıb.',
         parent_view_none: 'Hələ seçilməyib',
         notif_reminder_title: 'Yaxınlaşan görüş',
@@ -2607,6 +2935,37 @@
         home_card_team_sub: 'Teachers',
         home_card_news_title: 'News',
         home_card_news_sub: 'Announcements',
+        home_card_trialexams_title: 'Trial exams',
+        home_card_trialexams_sub: 'Paid',
+        trialexams_title: 'Paid Trial Exams',
+        trialexams_empty: 'No trial exams added yet.',
+        trialexams_register: 'Register',
+        trialexams_paid: 'Paid',
+        trialexams_pending: 'Pending',
+        trialexams_cancel: 'Cancel',
+        trialexams_registered_toast: 'You have registered',
+        trialexams_cancelled_toast: 'Cancelled',
+        trialexams_cancel_confirm: 'Are you sure you want to cancel this registration?',
+        trialexams_start: 'Start exam',
+        trialexams_exit: 'Exit',
+        trialexams_prev: 'Back',
+        trialexams_next: 'Next',
+        trialexams_submit: 'Submit',
+        trialexams_no_questions_title: 'Questions not ready yet',
+        trialexams_no_questions_sub: 'No questions have been added for this exam yet. Please contact the centre.',
+        trialexams_not_eligible_title: "You don't have access to this exam yet",
+        trialexams_not_eligible_sub: 'You can start the exam once your payment is confirmed.',
+        trialexams_already_taken_title: 'You have already taken this exam',
+        trialexams_already_taken_sub: 'You can see your result in the "Trial exams" section.',
+        trialexams_error_title: 'Something went wrong',
+        trialexams_error_sub: 'Please try again in a moment.',
+        trialexams_submit_confirm: "Once submitted you won't be able to review the questions again. Are you sure?",
+        trialexams_submit_confirm_unanswered: 'You have {n} unanswered question(s). Submit anyway?',
+        notif_trialexam_paid_title: 'Your trial exam payment was confirmed',
+        notif_trialexam_pending_title: 'Your trial exam registration was received',
+        notif_trialexam_result_title: 'Your trial exam result is ready',
+        trialexams_correct_short: 'correct',
+        trialexams_wrong_short: 'wrong',
         stat_unis: 'Selected university',
         stat_docs: 'Completed document',
         stat_consults: 'Planned consultation',
@@ -2711,6 +3070,7 @@
         parent_view_doc_tpl: '{done}/{total} documents ready',
         parent_view_countries: 'Target countries',
         parent_view_consult: 'Next consultation',
+        parent_view_trialexams: 'Trial exams',
         parent_view_footer: 'This is a read-only view shared by Bilik Education Centre.',
         parent_view_none: 'Not selected yet',
         notif_reminder_title: 'Upcoming meeting',
@@ -2826,6 +3186,37 @@
         home_card_team_sub: 'Учителя',
         home_card_news_title: 'Новости',
         home_card_news_sub: 'Объявления',
+        home_card_trialexams_title: 'Пробные',
+        home_card_trialexams_sub: 'Платные',
+        trialexams_title: 'Платные Пробные Экзамены',
+        trialexams_empty: 'Пробные экзамены пока не добавлены.',
+        trialexams_register: 'Записаться',
+        trialexams_paid: 'Оплачено',
+        trialexams_pending: 'Ожидается',
+        trialexams_cancel: 'Отменить',
+        trialexams_registered_toast: 'Вы записались',
+        trialexams_cancelled_toast: 'Отменено',
+        trialexams_cancel_confirm: 'Вы уверены, что хотите отменить эту запись?',
+        trialexams_start: 'Начать экзамен',
+        trialexams_exit: 'Выйти',
+        trialexams_prev: 'Назад',
+        trialexams_next: 'Далее',
+        trialexams_submit: 'Отправить',
+        trialexams_no_questions_title: 'Вопросы ещё не готовы',
+        trialexams_no_questions_sub: 'Для этого экзамена пока не добавлены вопросы. Свяжитесь с центром.',
+        trialexams_not_eligible_title: 'У вас пока нет доступа к этому экзамену',
+        trialexams_not_eligible_sub: 'Вы сможете начать экзамен после подтверждения оплаты.',
+        trialexams_already_taken_title: 'Вы уже прошли этот экзамен',
+        trialexams_already_taken_sub: 'Результат можно посмотреть в разделе «Пробные экзамены».',
+        trialexams_error_title: 'Произошла ошибка',
+        trialexams_error_sub: 'Попробуйте ещё раз через некоторое время.',
+        trialexams_submit_confirm: 'После отправки вы не сможете снова просмотреть вопросы. Вы уверены?',
+        trialexams_submit_confirm_unanswered: 'У вас {n} вопрос(ов) без ответа. Всё равно отправить?',
+        notif_trialexam_paid_title: 'Ваша оплата пробного экзамена подтверждена',
+        notif_trialexam_pending_title: 'Ваша запись на пробный экзамен получена',
+        notif_trialexam_result_title: 'Ваш результат пробного экзамена готов',
+        trialexams_correct_short: 'правильно',
+        trialexams_wrong_short: 'неправильно',
         stat_unis: 'Выбранный университет',
         stat_docs: 'Завершённый документ',
         stat_consults: 'Запланир. консультация',
@@ -2930,6 +3321,7 @@
         parent_view_doc_tpl: 'Готово {done}/{total} документов',
         parent_view_countries: 'Целевые страны',
         parent_view_consult: 'Следующая консультация',
+        parent_view_trialexams: 'Пробные экзамены',
         parent_view_footer: 'Это доступный только для чтения вид, предоставленный центром Bilik.',
         parent_view_none: 'Пока не выбрано',
         notif_reminder_title: 'Скоро встреча',
@@ -3045,6 +3437,37 @@
         home_card_team_sub: 'Öğretmenler',
         home_card_news_title: 'Haberler',
         home_card_news_sub: 'Duyurular',
+        home_card_trialexams_title: 'Deneme',
+        home_card_trialexams_sub: 'Ücretli',
+        trialexams_title: 'Ücretli Deneme Sınavları',
+        trialexams_empty: 'Henüz deneme sınavı eklenmedi.',
+        trialexams_register: 'Kayıt ol',
+        trialexams_paid: 'Ödendi',
+        trialexams_pending: 'Bekleniyor',
+        trialexams_cancel: 'İptal et',
+        trialexams_registered_toast: 'Kayıt oldunuz',
+        trialexams_cancelled_toast: 'İptal edildi',
+        trialexams_cancel_confirm: 'Bu kaydı iptal etmek istediğinizden emin misiniz?',
+        trialexams_start: 'Sınava başla',
+        trialexams_exit: 'Çıkış',
+        trialexams_prev: 'Geri',
+        trialexams_next: 'İleri',
+        trialexams_submit: 'Gönder',
+        trialexams_no_questions_title: 'Sorular henüz hazır değil',
+        trialexams_no_questions_sub: 'Bu sınav için henüz soru eklenmedi. Merkezle iletişime geçin.',
+        trialexams_not_eligible_title: 'Bu sınava henüz erişiminiz yok',
+        trialexams_not_eligible_sub: 'Ödemeniz onaylandıktan sonra sınava başlayabilirsiniz.',
+        trialexams_already_taken_title: 'Bu sınavı zaten verdiniz',
+        trialexams_already_taken_sub: 'Sonucunuzu "Deneme sınavları" bölümünde görebilirsiniz.',
+        trialexams_error_title: 'Bir hata oluştu',
+        trialexams_error_sub: 'Lütfen biraz sonra tekrar deneyin.',
+        trialexams_submit_confirm: 'Gönderdikten sonra soruları tekrar göremeyeceksiniz. Emin misiniz?',
+        trialexams_submit_confirm_unanswered: '{n} soruyu cevaplamadınız. Yine de gönderilsin mi?',
+        notif_trialexam_paid_title: 'Deneme sınavı ödemeniz onaylandı',
+        notif_trialexam_pending_title: 'Deneme sınavı kaydınız alındı',
+        notif_trialexam_result_title: 'Deneme sınavı sonucunuz hazır',
+        trialexams_correct_short: 'doğru',
+        trialexams_wrong_short: 'yanlış',
         stat_unis: 'Seçilen üniversite',
         stat_docs: 'Tamamlanan belge',
         stat_consults: 'Planlanan danışmanlık',
@@ -3149,6 +3572,7 @@
         parent_view_doc_tpl: '{done}/{total} belge hazır',
         parent_view_countries: 'Hedef ülkeler',
         parent_view_consult: 'Sonraki danışmanlık',
+        parent_view_trialexams: 'Deneme sınavları',
         parent_view_footer: 'Bu, Bilik Eğitim Merkezi tarafından paylaşılan salt okunur bir görünümdür.',
         parent_view_none: 'Henüz seçilmedi',
         notif_reminder_title: 'Yaklaşan görüşme',
@@ -4233,6 +4657,7 @@
       else if (tabId === 'services') loadServicesAdmin();
       else if (tabId === 'news') loadNewsAdmin();
       else if (tabId === 'examresults') loadExamResultsAdmin();
+      else if (tabId === 'trialexams') { loadTrialExamsAdmin(); loadTrialExamRegsAdmin(); }
       else if (tabId === 'analytics') loadAnalytics();
     }
 
@@ -5114,6 +5539,322 @@
       document.getElementById('new-examresult-value').value = '';
       toast('✓ Sınaq nəticəsi əlavə edildi');
       loadExamResultsAdmin();
+    });
+
+    /* ═══════════════════════════════════════════════════════════
+       ADMIN — ÖDƏNİŞLİ SINAQ İMTAHANLARI
+       Kataloq (ad/qiymət/izah) + tələbələrin qeydiyyatları. Ödəniş
+       nağd/bank köçürməsi ilə OFFLINE aparılır, burada yalnız statusu
+       (gözlənilir/ödənilib) əl ilə qeyd edirik — kart ödənişi YOXDUR.
+    ═══════════════════════════════════════════════════════════ */
+    async function loadTrialExamsAdmin() {
+      const listEl = document.getElementById('admin-trialexams-list');
+      listEl.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line wide"></div><div class="skeleton skeleton-line narrow"></div></div>'.repeat(2);
+
+      if (!sb) { listEl.innerHTML = '<div class="admin-empty"><span class="empty-icon">⚠️</span>Supabase bağlantısı yoxdur.</div>'; return; }
+
+      const { data, error } = await sb.from('trial_exams')
+        .select('*')
+        .order('sort_order', { ascending: true })
+        .order('id', { ascending: true });
+
+      if (error) {
+        listEl.innerHTML = `
+          <div class="admin-empty" style="text-align:left; padding:16px;">
+            <span class="empty-icon">❌</span>
+            <b>Cədvəl tapılmadı</b><br>
+            <span style="font-size:12px; color:var(--ink-soft);">${escapeHtml(error.message)}</span><br><br>
+            <span style="font-size:11px; color:var(--ink-soft);">
+              <b>supabase-security-setup.sql</b> faylını Supabase → SQL Editor-da icra edin.</span>
+          </div>`;
+        return;
+      }
+      if (!data || !data.length) {
+        listEl.innerHTML = '<div class="admin-empty"><span class="empty-icon">🎯</span>Hələ sınaq imtahanı əlavə edilməyib.</div>';
+        return;
+      }
+
+      const card = document.createElement('div');
+      card.className = 'admin-card';
+      data.forEach(ex => {
+        const row = document.createElement('div');
+        row.className = 'admin-card-row';
+        row.innerHTML = `
+          <div class="admin-card-row-info">
+            <p class="admin-row-name">${escapeHtml(ex.name)}${ex.active ? '' : ' (gizli)'}</p>
+            <p class="admin-row-sub">${ex.price_text ? escapeHtml(ex.price_text) + ' · ' : ''}sıra ${ex.sort_order}</p>
+          </div>
+          <div style="display:flex; gap:6px; align-items:center; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end;">
+            <button class="admin-action-btn trialexam-questions-btn" data-id="${ex.id}" data-name="${escapeHtml(ex.name)}">❓ Suallar</button>
+            <button class="admin-action-btn toggle-trialexam" data-id="${ex.id}" data-active="${ex.active}">${ex.active ? 'Gizlət' : 'Göstər'}</button>
+            <button class="admin-action-btn danger del-trialexam" data-id="${ex.id}">Sil</button>
+          </div>`;
+        card.appendChild(row);
+      });
+      listEl.innerHTML = '';
+      listEl.appendChild(card);
+
+      listEl.querySelectorAll('.toggle-trialexam').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const newActive = btn.dataset.active !== 'true';
+          await sb.from('trial_exams').update({ active: newActive }).eq('id', btn.dataset.id);
+          logAudit('Sınaq imtahanı dəyişdirildi', btn.dataset.id, newActive ? 'aktiv' : 'gizli');
+          toast('✓ Yeniləndi');
+          loadTrialExamsAdmin();
+          loadTrialExams();
+        });
+      });
+      listEl.querySelectorAll('.del-trialexam').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Bu sınaq imtahanını silmək istədiyinizə əminsiniz? Bütün qeydiyyatlar da silinəcək.')) return;
+          await sb.from('trial_exams').delete().eq('id', btn.dataset.id);
+          logAudit('Sınaq imtahanı silindi', btn.dataset.id);
+          toast('✓ Silindi');
+          loadTrialExamsAdmin();
+          loadTrialExams();
+          loadTrialExamRegsAdmin();
+        });
+      });
+      listEl.querySelectorAll('.trialexam-questions-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          currentQuestionsExamId = btn.dataset.id;
+          document.getElementById('trialexam-questions-title').textContent = 'Sınaq sualları — ' + btn.dataset.name;
+          openModal('trialexam-questions-modal');
+          loadTrialExamQuestionsAdmin();
+        });
+      });
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       ADMIN — SINAQ SUALLARI (interaktiv sınaq üçün)
+    ═══════════════════════════════════════════════════════════ */
+    let currentQuestionsExamId = null;
+
+    async function loadTrialExamQuestionsAdmin() {
+      const listEl = document.getElementById('admin-trialexam-questions-list');
+      if (!currentQuestionsExamId || !sb) return;
+      listEl.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line wide"></div><div class="skeleton skeleton-line narrow"></div></div>'.repeat(2);
+
+      const { data, error } = await sb.from('trial_exam_questions')
+        .select('*')
+        .eq('trial_exam_id', currentQuestionsExamId)
+        .order('sort_order', { ascending: true })
+        .order('id', { ascending: true });
+
+      if (error) {
+        listEl.innerHTML = `
+          <div class="admin-empty" style="text-align:left; padding:16px;">
+            <span class="empty-icon">❌</span>
+            <b>Cədvəl tapılmadı</b><br>
+            <span style="font-size:12px; color:var(--ink-soft);">${escapeHtml(error.message)}</span><br><br>
+            <span style="font-size:11px; color:var(--ink-soft);">
+              <b>supabase-security-setup.sql</b> faylını Supabase → SQL Editor-da icra edin.</span>
+          </div>`;
+        return;
+      }
+      if (!data || !data.length) {
+        listEl.innerHTML = '<div class="admin-empty"><span class="empty-icon">❓</span>Hələ sual əlavə edilməyib.</div>';
+        return;
+      }
+
+      const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
+      const card = document.createElement('div');
+      card.className = 'admin-card';
+      data.forEach((q, idx) => {
+        const opts = Array.isArray(q.options) ? q.options : [];
+        const optsHtml = opts.map((o, i) => `<span style="display:block; ${i === q.correct_index ? 'color:var(--teal); font-weight:600;' : ''}">${i === q.correct_index ? '✓' : letters[i]} ${escapeHtml(o)}</span>`).join('');
+        const row = document.createElement('div');
+        row.className = 'admin-card-row';
+        row.innerHTML = `
+          <div class="admin-card-row-info">
+            <p class="admin-row-name">${idx + 1}. ${escapeHtml(q.question_text)}</p>
+            <div class="admin-row-sub" style="line-height:1.6;">${optsHtml}</div>
+          </div>
+          <div style="display:flex; gap:6px; align-items:flex-start; flex-shrink:0;">
+            <button class="admin-action-btn danger del-question" data-id="${q.id}">Sil</button>
+          </div>`;
+        card.appendChild(row);
+      });
+      listEl.innerHTML = '';
+      listEl.appendChild(card);
+
+      listEl.querySelectorAll('.del-question').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Bu sualı silmək istədiyinizə əminsiniz?')) return;
+          await sb.from('trial_exam_questions').delete().eq('id', btn.dataset.id);
+          toast('✓ Sual silindi');
+          loadTrialExamQuestionsAdmin();
+        });
+      });
+    }
+
+    document.getElementById('add-question-btn')?.addEventListener('click', async () => {
+      if (!sb || !currentQuestionsExamId) return;
+      const questionText = document.getElementById('new-question-text').value.trim();
+      const opts = [0, 1, 2, 3].map(i => document.getElementById('new-question-opt-' + i).value.trim());
+      if (!questionText) { toast('Sual mətnini yazın', true); return; }
+      if (opts.some(o => !o)) { toast('Bütün 4 seçimi doldurun', true); return; }
+      const correctRadio = document.querySelector('input[name="new-question-correct"]:checked');
+      const correctIndex = correctRadio ? parseInt(correctRadio.value, 10) : 0;
+
+      const btn = document.getElementById('add-question-btn');
+      btn.disabled = true; btn.textContent = '...';
+      const { error } = await sb.from('trial_exam_questions').insert({
+        trial_exam_id: parseInt(currentQuestionsExamId, 10),
+        question_text: questionText,
+        options: opts,
+        correct_index: correctIndex
+      });
+      btn.disabled = false; btn.textContent = 'Sual əlavə et';
+
+      if (error) { toast('Xəta: ' + error.message, true); return; }
+      document.getElementById('new-question-text').value = '';
+      [0, 1, 2, 3].forEach(i => { document.getElementById('new-question-opt-' + i).value = ''; });
+      document.querySelector('input[name="new-question-correct"][value="0"]').checked = true;
+      toast('✓ Sual əlavə edildi');
+      loadTrialExamQuestionsAdmin();
+    });
+
+    document.getElementById('trialexam-questions-close')?.addEventListener('click', () => closeModal('trialexam-questions-modal'));
+    document.getElementById('trialexam-questions-modal')?.addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeModal('trialexam-questions-modal');
+    });
+
+    document.getElementById('add-trialexam-btn')?.addEventListener('click', async () => {
+      const name = document.getElementById('new-trialexam-name').value.trim();
+      const price = document.getElementById('new-trialexam-price').value.trim();
+      const desc = document.getElementById('new-trialexam-desc').value.trim();
+      if (!name) { toast('Ad yazın', true); return; }
+      if (!sb) return;
+
+      const { error } = await sb.from('trial_exams')
+        .insert({ name, price_text: price || null, description: desc || null, active: true });
+
+      if (error) { toast('Xəta: ' + error.message, true); return; }
+      logAudit('Sınaq imtahanı əlavə edildi', name);
+      document.getElementById('new-trialexam-name').value = '';
+      document.getElementById('new-trialexam-price').value = '';
+      document.getElementById('new-trialexam-desc').value = '';
+      toast('✓ Sınaq imtahanı əlavə edildi');
+      loadTrialExamsAdmin();
+      loadTrialExams();
+    });
+
+    async function loadTrialExamRegsAdmin() {
+      const listEl = document.getElementById('admin-trialexam-regs-list');
+      listEl.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line wide"></div><div class="skeleton skeleton-line narrow"></div></div>'.repeat(3);
+
+      if (!sb) { listEl.innerHTML = '<div class="admin-empty"><span class="empty-icon">⚠️</span>Supabase bağlantısı yoxdur.</div>'; return; }
+
+      profilesNameCache = null;
+      await loadProfilesCache();
+
+      const { data, error } = await sb.from('trial_exam_registrations')
+        .select('*, trial_exams(name)')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) {
+        listEl.innerHTML = `
+          <div class="admin-empty" style="text-align:left; padding:16px;">
+            <span class="empty-icon">❌</span>
+            <b>Cədvəl tapılmadı</b><br>
+            <span style="font-size:12px; color:var(--ink-soft);">${escapeHtml(error.message)}</span>
+          </div>`;
+        return;
+      }
+      if (!data || !data.length) {
+        listEl.innerHTML = '<div class="admin-empty"><span class="empty-icon">🎯</span>Hələ qeydiyyat yoxdur.</div>';
+        return;
+      }
+
+      const card = document.createElement('div');
+      card.className = 'admin-card';
+      data.forEach(r => {
+        const studentName = (profilesNameCache && profilesNameCache[r.student_email]) || '';
+        const examName = (r.trial_exams && r.trial_exams.name) || '—';
+        const isPaid = r.payment_status === 'ödənilib';
+        const resultLine = trialExamResultLine(r);
+        const row = document.createElement('div');
+        row.className = 'admin-card-row';
+        row.innerHTML = `
+          <div class="admin-card-row-info">
+            <p class="admin-row-name">${escapeHtml(examName)}</p>
+            <p class="admin-row-sub">${escapeHtml(studentName ? studentName + ' — ' + r.student_email : r.student_email)}${r.created_at ? ' · ' + new Date(r.created_at).toLocaleDateString('az-AZ') : ''}</p>
+            ${resultLine ? `<p class="admin-row-sub" style="color:var(--teal); font-weight:600;">${escapeHtml(resultLine)}</p>` : ''}
+          </div>
+          <div style="display:flex; gap:6px; align-items:center; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end;">
+            <span class="status-badge ${isPaid ? 'done' : 'pending'}">${isPaid ? 'Ödənilib' : 'Gözlənilir'}</span>
+            <button class="admin-action-btn toggle-trialexam-paid" data-id="${r.id}" data-paid="${isPaid}">${isPaid ? '↺ Gözləniləndir' : '✓ Ödənildi et'}</button>
+            <button class="admin-action-btn trialexam-result-btn" data-id="${r.id}" data-correct="${r.correct_count ?? ''}" data-wrong="${r.wrong_count ?? ''}" data-total="${r.total_questions ?? ''}" data-exam="${escapeHtml(examName)}" data-student="${escapeHtml(studentName || r.student_email)}">📝 Nəticə</button>
+            <button class="admin-action-btn danger del-trialexam-reg" data-id="${r.id}">Sil</button>
+          </div>`;
+        card.appendChild(row);
+      });
+      listEl.innerHTML = '';
+      listEl.appendChild(card);
+
+      listEl.querySelectorAll('.toggle-trialexam-paid').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const newStatus = btn.dataset.paid === 'true' ? 'gözlənilir' : 'ödənilib';
+          await sb.from('trial_exam_registrations').update({ payment_status: newStatus }).eq('id', btn.dataset.id);
+          logAudit('Sınaq qeydiyyatı ödəniş statusu dəyişdirildi', btn.dataset.id, newStatus);
+          toast('✓ Yeniləndi');
+          loadTrialExamRegsAdmin();
+        });
+      });
+      listEl.querySelectorAll('.del-trialexam-reg').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Bu qeydiyyatı silmək istədiyinizə əminsiniz?')) return;
+          await sb.from('trial_exam_registrations').delete().eq('id', btn.dataset.id);
+          logAudit('Sınaq qeydiyyatı silindi', btn.dataset.id);
+          toast('✓ Silindi');
+          loadTrialExamRegsAdmin();
+        });
+      });
+      listEl.querySelectorAll('.trialexam-result-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          trialExamResultRegId = btn.dataset.id;
+          document.getElementById('trialexam-result-subtitle').textContent = `${btn.dataset.exam} — ${btn.dataset.student}`;
+          document.getElementById('trialexam-result-correct').value = btn.dataset.correct;
+          document.getElementById('trialexam-result-wrong').value = btn.dataset.wrong;
+          document.getElementById('trialexam-result-total').value = btn.dataset.total;
+          openModal('trialexam-result-modal');
+        });
+      });
+    }
+
+    // Doğru/səhv/ümumi say ilə faiz hesablayıb qısa xülasə sətri hazırlayır —
+    // həm admin siyahısında, həm tələbə kataloqunda, həm bildirişdə istifadə olunur.
+    function trialExamResultLine(r) {
+      if (r.total_questions === null || r.total_questions === undefined) return '';
+      const correct = r.correct_count || 0;
+      const pct = r.total_questions ? Math.round(correct / r.total_questions * 100) : 0;
+      const wrongPart = (r.wrong_count !== null && r.wrong_count !== undefined) ? `, ${r.wrong_count} ${t('trialexams_wrong_short', 'səhv')}` : '';
+      return `${correct}/${r.total_questions} ${t('trialexams_correct_short', 'doğru')} (${pct}%)${wrongPart}`;
+    }
+
+    let trialExamResultRegId = null;
+    document.getElementById('trialexam-result-save-btn')?.addEventListener('click', async () => {
+      if (!sb || !trialExamResultRegId) return;
+      const correctVal = document.getElementById('trialexam-result-correct').value;
+      const wrongVal = document.getElementById('trialexam-result-wrong').value;
+      const totalVal = document.getElementById('trialexam-result-total').value;
+      if (totalVal === '') { toast('Ümumi sual sayını yazın', true); return; }
+      const payload = {
+        correct_count: correctVal === '' ? null : parseInt(correctVal, 10),
+        wrong_count: wrongVal === '' ? null : parseInt(wrongVal, 10),
+        total_questions: parseInt(totalVal, 10)
+      };
+      await sb.from('trial_exam_registrations').update(payload).eq('id', trialExamResultRegId);
+      logAudit('Sınaq nəticəsi əlavə edildi', trialExamResultRegId);
+      toast('✓ Nəticə yadda saxlanıldı');
+      closeModal('trialexam-result-modal');
+      loadTrialExamRegsAdmin();
+    });
+    document.getElementById('trialexam-result-cancel-btn')?.addEventListener('click', () => closeModal('trialexam-result-modal'));
+    document.getElementById('trialexam-result-modal')?.addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeModal('trialexam-result-modal');
     });
 
     /* ═══════════════════════════════════════════════════════════

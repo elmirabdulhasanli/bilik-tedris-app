@@ -266,7 +266,54 @@
           <p style="font-size:13px; color:var(--ink); margin:0;" id="parent-view-consult">—</p>
         </div>
 
+        <div class="card" id="parent-view-trialexams-card" style="margin-top:10px; display:none;">
+          <p class="section-label" style="margin-bottom:6px;" data-i18n="parent_view_trialexams">Sınaq imtahanları</p>
+          <div id="parent-view-trialexams-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+        </div>
+
         <p style="text-align:center; font-size:11px; color:var(--ink-soft); margin-top:20px;" data-i18n="parent_view_footer">Bu, yalnız-oxu görünüşdür — Bilik Tədris Mərkəzi tərəfindən paylaşılıb.</p>
+      </div>
+    </div>
+
+    <!-- ══════════════ SINAQ HƏLLİ (tələbə) ══════════════ -->
+    <div class="screen" id="trialexam-take">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+        <button class="link-back" id="trialexam-take-exit-btn" data-i18n="trialexams_exit">&larr; Çıx</button>
+        <p style="font-size:12px; color:var(--ink-soft); margin:0;" id="trialexam-take-progress">1/1</p>
+      </div>
+      <p class="eyebrow" id="trialexam-take-exam-name">—</p>
+      <div class="progress-track" style="margin-bottom:22px;">
+        <div class="progress-fill" id="trialexam-take-progress-fill" style="width:0%;"></div>
+      </div>
+
+      <div id="trialexam-take-body">
+        <div id="trialexam-take-question-area"></div>
+
+        <div style="display:flex; gap:10px; margin-top:20px;">
+          <button class="btn ghost" id="trialexam-take-prev-btn" style="flex:1;" data-i18n="trialexams_prev">&larr; Geri</button>
+          <button class="btn" id="trialexam-take-next-btn" style="flex:1;" data-i18n="trialexams_next">İrəli &rarr;</button>
+        </div>
+        <button class="btn" id="trialexam-take-submit-btn" style="width:100%; margin-top:10px; display:none;" data-i18n="trialexams_submit">Təqdim et</button>
+      </div>
+
+      <div id="trialexam-take-empty" style="display:none; text-align:center; padding:60px 16px;">
+        <p style="font-size:32px; margin:0 0 8px;">🎯</p>
+        <p style="font-weight:600; margin:0 0 4px;" data-i18n="trialexams_no_questions_title">Suallar hazır deyil</p>
+        <p style="font-size:12.5px; color:var(--ink-soft); margin:0 0 20px;" data-i18n="trialexams_no_questions_sub">Bu sınaq üçün hələ sual əlavə olunmayıb. Mərkəzlə əlaqə saxlayın.</p>
+        <button class="btn ghost" id="trialexam-take-empty-back-btn" data-i18n="trialexams_exit">&larr; Çıx</button>
+      </div>
+
+      <div id="trialexam-take-blocked" style="display:none; text-align:center; padding:60px 16px;">
+        <p style="font-size:32px; margin:0 0 8px;">🔒</p>
+        <p style="font-weight:600; margin:0 0 4px;" id="trialexam-take-blocked-title"></p>
+        <p style="font-size:12.5px; color:var(--ink-soft); margin:0 0 20px;" id="trialexam-take-blocked-sub"></p>
+        <button class="btn ghost" id="trialexam-take-blocked-back-btn" data-i18n="trialexams_exit">&larr; Çıx</button>
+      </div>
+
+      <div id="trialexam-take-result" style="display:none; text-align:center; padding:30px 0;">
+        <p style="font-size:52px; font-weight:800; margin:0; color:var(--teal);" id="trialexam-take-result-pct">0%</p>
+        <p style="font-size:14px; color:var(--ink-soft); margin:8px 0 24px;" id="trialexam-take-result-detail"></p>
+        <button class="btn" id="trialexam-take-done-btn" data-i18n="close">Bağla</button>
       </div>
     </div>
 
@@ -346,6 +393,16 @@
             📰</div>
           <p style="font-size: 11.5px; font-weight: 600; margin: 0 0 2px; color: var(--ink);" data-i18n="home_card_news_title">Xəbərlər</p>
           <p style="font-size: 10px; color: var(--ink-soft); margin: 0;" data-i18n="home_card_news_sub">Elanlar</p>
+        </div>
+        <div class="card" id="home-card-trialexams"
+          style="text-align: center; padding: 14px 8px; cursor: pointer; transition: transform .15s, box-shadow .15s;"
+          onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(15,23,42,0.1)'"
+          onmouseout="this.style.transform='';this.style.boxShadow=''">
+          <div
+            style="width: 40px; height: 40px; border-radius: 12px; background: var(--navy); color: var(--gold); display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 18px;">
+            🎯</div>
+          <p style="font-size: 11.5px; font-weight: 600; margin: 0 0 2px; color: var(--ink);" data-i18n="home_card_trialexams_title">Sınaqlar</p>
+          <p style="font-size: 10px; color: var(--ink-soft); margin: 0;" data-i18n="home_card_trialexams_sub">Ödənişli</p>
         </div>
       </div>
 
@@ -1167,6 +1224,34 @@
           <div id="admin-examresults-list"></div>
         </div>
 
+        <!-- ── ÖDƏNİŞLİ SINAQ İMTAHANLARI ── -->
+        <div class="admin-panel" id="admin-panel-trialexams">
+          <p class="admin-section-title">Yeni sınaq imtahanı əlavə et</p>
+          <div class="admin-card" style="padding:14px; margin-bottom:14px;">
+            <div class="admin-field">
+              <label>Ad</label>
+              <input type="text" id="new-trialexam-name" placeholder="məs. YÖS Sınaq İmtahanı">
+            </div>
+            <div class="admin-field">
+              <label>Qiymət</label>
+              <input type="text" id="new-trialexam-price" placeholder="məs. 15 AZN">
+            </div>
+            <div class="admin-field">
+              <label>İzah (istəyə bağlı)</label>
+              <textarea id="new-trialexam-desc" rows="2" placeholder="Qısa izah..."
+                style="width:100%; border:1px solid var(--line); border-radius:10px; padding:10px; font-family:'Inter',sans-serif; font-size:13px; color:var(--ink); resize:vertical;"></textarea>
+            </div>
+            <div class="admin-confirm-row">
+              <button class="admin-btn-primary" id="add-trialexam-btn">Əlavə et</button>
+            </div>
+          </div>
+          <p class="admin-section-title">Mövcud sınaq imtahanları</p>
+          <div id="admin-trialexams-list" style="margin-bottom:14px;"></div>
+
+          <p class="admin-section-title">Qeydiyyatlar</p>
+          <div id="admin-trialexam-regs-list"></div>
+        </div>
+
         <!-- ── ANALİTİKA ── -->
         <div class="admin-panel" id="admin-panel-analytics">
           <p class="admin-section-title">Ümumi göstəricilər</p>
@@ -1252,6 +1337,9 @@
         </button>
         <button class="admin-more-row" id="admin-more-examresults" data-admin-tab="examresults">
           <span class="ic">📊</span> Sınaq nəticələri
+        </button>
+        <button class="admin-more-row" id="admin-more-trialexams" data-admin-tab="trialexams">
+          <span class="ic">🎯</span> Ödənişli sınaqlar
         </button>
         <button class="admin-more-row" id="admin-more-analytics" data-admin-tab="analytics">
           <span class="ic">📈</span> Analitika
@@ -1341,6 +1429,18 @@
       </div>
     </div>
 
+    <!-- ══════════════ MODAL: Sınaq İmtahanları ══════════════ -->
+    <div class="admin-modal-overlay" id="trialexams-modal">
+      <div class="admin-modal-box">
+        <div class="admin-modal-handle"></div>
+        <p class="admin-modal-title" data-i18n="trialexams_title">Ödənişli Sınaq İmtahanları</p>
+        <div id="trialexams-list" style="display: flex; flex-direction: column; gap: 12px;"></div>
+        <p id="trialexams-empty" class="doc-due" style="display:none; text-align:center; padding:8px 0 0; margin:0;" data-i18n="trialexams_empty">Hələ sınaq imtahanı əlavə olunmayıb.</p>
+        <div class="admin-divider"></div>
+        <button class="admin-btn-ghost" style="width:100%; padding:11px; border-radius:10px; border:1px solid var(--line); font-family:'Inter',sans-serif; font-size:13px; cursor:pointer;" id="trialexams-modal-close" data-i18n="close">Bağla</button>
+      </div>
+    </div>
+
     <!-- ══════════════ MODAL: Bütün tələbələrə elan ══════════════ -->
     <div class="admin-modal-overlay" id="announce-modal">
       <div class="admin-modal-box">
@@ -1419,6 +1519,76 @@
           <button class="admin-btn-ghost" id="staff-delete-cancel-btn" style="border:1px solid var(--line);">Ləğv
             et</button>
         </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ MODAL: Sınaq Nəticəsi ══════════════ -->
+    <div class="admin-modal-overlay" id="trialexam-result-modal">
+      <div class="admin-modal-box">
+        <div class="admin-modal-handle"></div>
+        <p class="admin-modal-title">Sınaq Nəticəsi</p>
+        <p style="font-size:12px; color:var(--ink-soft); margin:0 0 12px;" id="trialexam-result-subtitle"></p>
+        <div class="admin-field">
+          <label>Doğru sayı</label>
+          <input type="number" id="trialexam-result-correct" min="0" placeholder="məs. 38">
+        </div>
+        <div class="admin-field">
+          <label>Səhv sayı</label>
+          <input type="number" id="trialexam-result-wrong" min="0" placeholder="məs. 12">
+        </div>
+        <div class="admin-field">
+          <label>Ümumi sual sayı</label>
+          <input type="number" id="trialexam-result-total" min="0" placeholder="məs. 50">
+        </div>
+        <div class="admin-confirm-row">
+          <button class="admin-btn-primary" id="trialexam-result-save-btn">Yadda saxla</button>
+          <button class="admin-btn-ghost" id="trialexam-result-cancel-btn" style="border:1px solid var(--line);">Ləğv et</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ MODAL: Sınaq Sualları (admin) ══════════════ -->
+    <div class="admin-modal-overlay" id="trialexam-questions-modal">
+      <div class="admin-modal-box">
+        <div class="admin-modal-handle"></div>
+        <p class="admin-modal-title" id="trialexam-questions-title">Sınaq sualları</p>
+
+        <p class="admin-section-title">Mövcud suallar</p>
+        <div id="admin-trialexam-questions-list" style="margin-bottom:14px;"></div>
+
+        <p class="admin-section-title">Yeni sual əlavə et</p>
+        <div class="admin-card" style="padding:14px;">
+          <div class="admin-field">
+            <label>Sual mətni</label>
+            <textarea id="new-question-text" rows="2" placeholder="məs. Azərbaycanın paytaxtı hansıdır?"
+              style="width:100%; border:1px solid var(--line); border-radius:10px; padding:10px; font-family:'Inter',sans-serif; font-size:13px; color:var(--ink); resize:vertical;"></textarea>
+          </div>
+          <div class="admin-field">
+            <label>Seçimlər (doğru olanın qarşısındakı işarəni seçin)</label>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+              <input type="radio" name="new-question-correct" value="0" checked style="flex-shrink:0;">
+              <input type="text" id="new-question-opt-0" placeholder="A seçimi" style="flex:1;">
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+              <input type="radio" name="new-question-correct" value="1" style="flex-shrink:0;">
+              <input type="text" id="new-question-opt-1" placeholder="B seçimi" style="flex:1;">
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+              <input type="radio" name="new-question-correct" value="2" style="flex-shrink:0;">
+              <input type="text" id="new-question-opt-2" placeholder="C seçimi" style="flex:1;">
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <input type="radio" name="new-question-correct" value="3" style="flex-shrink:0;">
+              <input type="text" id="new-question-opt-3" placeholder="D seçimi" style="flex:1;">
+            </div>
+          </div>
+          <div class="admin-confirm-row">
+            <button class="admin-btn-primary" id="add-question-btn">Sual əlavə et</button>
+          </div>
+        </div>
+
+        <div class="admin-divider"></div>
+        <button class="admin-btn-ghost" style="width:100%; padding:11px; border-radius:10px; border:1px solid var(--line); font-family:'Inter',sans-serif; font-size:13px; cursor:pointer;" id="trialexam-questions-close">Bağla</button>
       </div>
     </div>
 

@@ -661,6 +661,7 @@ declare
   v_docs_total int;
   v_docs_done int;
   v_consult record;
+  v_trial_exams json;
 begin
   select * into v_link from public.parent_links
     where token = p_token and revoked = false
@@ -685,6 +686,18 @@ begin
     order by date asc, time asc
     limit 1;
 
+  select json_agg(json_build_object(
+      'exam_name', te.name,
+      'payment_status', reg.payment_status,
+      'correct_count', reg.correct_count,
+      'wrong_count', reg.wrong_count,
+      'total_questions', reg.total_questions
+    ) order by reg.created_at desc)
+    into v_trial_exams
+    from public.trial_exam_registrations reg
+    join public.trial_exams te on te.id = reg.trial_exam_id
+    where reg.student_email = v_link.student_email;
+
   return json_build_object(
     'student_name', coalesce(v_profile.name, v_link.student_email),
     'target_countries', coalesce(v_profile.target_countries, '{}'),
@@ -692,7 +705,8 @@ begin
     'docs_done', coalesce(v_docs_done, 0),
     'consult_advisor', v_consult.advisor_name,
     'consult_date', v_consult.date,
-    'consult_time', v_consult.time
+    'consult_time', v_consult.time,
+    'trial_exams', coalesce(v_trial_exams, '[]'::json)
   );
 end;
 $$;
@@ -735,8 +749,208 @@ create policy "exam_results_delete_staff"
   using (public.is_staff_or_admin());
 
 
+-- ─── 18. TRIAL_EXAMS + TRIAL_EXAM_REGISTRATIONS — ödənişli sınaq imtahanları ──
+-- Admin/staff sınaq imtahanı (ad+qiymət+izah) əlavə edir, tələbə Ev ekranından
+-- görüb qeydiyyatdan keçir. Ödəniş nağd/bank köçürməsi ilə OFFLINE aparılır —
+-- admin panel yalnız statusu (gözlənilir/ödənilib) əl ilə qeyd etmək üçündür,
+-- kart ödənişi inteqrasiyası YOXDUR.
+
+create table if not exists public.trial_exams (
+  id bigint generated always as identity primary key,
+  name text not null,
+  description text,
+  price_text text,
+  sort_order int not null default 0,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+alter table public.trial_exams enable row level security;
+
+drop policy if exists "trial_exams_select_all" on public.trial_exams;
+create policy "trial_exams_select_all"
+  on public.trial_exams for select
+  to authenticated
+  using (true);
+
+drop policy if exists "trial_exams_write_staff" on public.trial_exams;
+create policy "trial_exams_write_staff"
+  on public.trial_exams for all
+  to authenticated
+  using (public.is_staff_or_admin())
+  with check (public.is_staff_or_admin());
+
+create table if not exists public.trial_exam_registrations (
+  id bigint generated always as identity primary key,
+  trial_exam_id bigint not null references public.trial_exams(id) on delete cascade,
+  student_email text not null,
+  payment_status text not null default 'gözlənilir',
+  -- Nəticə (yalnız test-tipli, doğru/səhv sualla ölçülən imtahanlar üçün) —
+  -- admin qeyd edəndə faiz/bal JS tərəfində correct/total-dan hesablanır.
+  correct_count int,
+  wrong_count int,
+  total_questions int,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.trial_exam_registrations enable row level security;
+
+-- Ödəniş statusu dəyişəndə updated_at avtomatik yenilənir — bildiriş paneli
+-- bunu "yeni dəyişiklik" kimi tanıyıb yenidən "görülməmiş" göstərsin deyə
+-- (bax: public.set_updated_at(), consultations cədvəlində də eyni məntiq).
+drop trigger if exists trg_trial_reg_updated_at on public.trial_exam_registrations;
+create trigger trg_trial_reg_updated_at
+  before update on public.trial_exam_registrations
+  for each row execute function public.set_updated_at();
+
+-- Tələbə öz qeydiyyatını görür, staff/admin hamısını görür
+drop policy if exists "trial_reg_select_own_or_staff" on public.trial_exam_registrations;
+create policy "trial_reg_select_own_or_staff"
+  on public.trial_exam_registrations for select
+  to authenticated
+  using (auth.email() = student_email or public.is_staff_or_admin());
+
+-- Tələbə özü qeydiyyatdan keçir (yalnız öz emaili ilə)
+drop policy if exists "trial_reg_insert_own" on public.trial_exam_registrations;
+create policy "trial_reg_insert_own"
+  on public.trial_exam_registrations for insert
+  to authenticated
+  with check (auth.email() = student_email);
+
+-- Ödəniş statusunu yalnız staff/admin dəyişə bilər
+drop policy if exists "trial_reg_update_staff" on public.trial_exam_registrations;
+create policy "trial_reg_update_staff"
+  on public.trial_exam_registrations for update
+  to authenticated
+  using (public.is_staff_or_admin())
+  with check (public.is_staff_or_admin());
+
+-- Tələbə hələ ödənilməmiş öz qeydiyyatını ləğv edə bilər, staff/admin hamısını silə bilər
+drop policy if exists "trial_reg_delete_own_pending_or_staff" on public.trial_exam_registrations;
+create policy "trial_reg_delete_own_pending_or_staff"
+  on public.trial_exam_registrations for delete
+  to authenticated
+  using ((auth.email() = student_email and payment_status = 'gözlənilir') or public.is_staff_or_admin());
+
+
+-- ─── 19. TRIAL_EXAM_QUESTIONS — tam interaktiv sınaq sistemi ─────────────
+-- Admin sualları (4 seçim + doğru cavab) daxil edir. Tələbə cədvələ birbaşa
+-- ÇIXIŞI YOXDUR (RLS yalnız staff/admin-ə icazə verir) — doğru cavab heç vaxt
+-- brauzerə ötürülmür. Tələbə suallara YALNIZ get_trial_exam_questions() ilə
+-- baxır (correct_index qaytarmır), cavabları YALNIZ submit_trial_exam_answers()
+-- ilə göndərir (yoxlama serverdə olur). Beləcə şəbəkə sorğularına baxsa belə
+-- tələbə düzgün cavabı əvvəlcədən görə bilməz.
+
+create table if not exists public.trial_exam_questions (
+  id bigint generated always as identity primary key,
+  trial_exam_id bigint not null references public.trial_exams(id) on delete cascade,
+  question_text text not null,
+  options jsonb not null,
+  correct_index int not null,
+  sort_order int not null default 0,
+  created_at timestamptz not null default now()
+);
+
+alter table public.trial_exam_questions enable row level security;
+
+drop policy if exists "trial_questions_all_staff" on public.trial_exam_questions;
+create policy "trial_questions_all_staff"
+  on public.trial_exam_questions for all
+  to authenticated
+  using (public.is_staff_or_admin())
+  with check (public.is_staff_or_admin());
+
+-- Yalnız ödənişi təsdiqlənmiş, hələ imtahanı verməmiş tələbəyə sualları
+-- (doğru cavab OLMADAN) qaytarır.
+create or replace function public.get_trial_exam_questions(p_trial_exam_id bigint)
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_email text := auth.email();
+  v_reg record;
+  v_questions json;
+begin
+  select * into v_reg from public.trial_exam_registrations
+    where trial_exam_id = p_trial_exam_id and student_email = v_email
+    order by created_at desc
+    limit 1;
+
+  if v_reg is null or v_reg.payment_status <> 'ödənilib' then
+    return json_build_object('error', 'not_eligible');
+  end if;
+  if v_reg.total_questions is not null then
+    return json_build_object('error', 'already_taken');
+  end if;
+
+  select json_agg(json_build_object('id', id, 'question_text', question_text, 'options', options) order by sort_order, id)
+    into v_questions
+    from public.trial_exam_questions
+    where trial_exam_id = p_trial_exam_id;
+
+  return json_build_object('registration_id', v_reg.id, 'questions', coalesce(v_questions, '[]'::json));
+end;
+$$;
+
+grant execute on function public.get_trial_exam_questions(bigint) to authenticated;
+
+-- Tələbənin cavablarını (p_answers: [{"question_id":1,"selected_index":2}, ...])
+-- serverdə doğru cavablarla müqayisə edib nəticəni hesablayır və
+-- trial_exam_registrations-a yazır. Doğru cavablar heç vaxt cavab olaraq
+-- qaytarılmır — yalnız yekun say (correct/wrong/total).
+create or replace function public.submit_trial_exam_answers(p_registration_id bigint, p_answers jsonb)
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_email text := auth.email();
+  v_reg record;
+  v_total int;
+  v_correct int := 0;
+  v_wrong int := 0;
+  v_answer record;
+  v_correct_idx int;
+begin
+  select * into v_reg from public.trial_exam_registrations where id = p_registration_id;
+  if v_reg is null or v_reg.student_email <> v_email then
+    return json_build_object('error', 'not_allowed');
+  end if;
+  if v_reg.total_questions is not null then
+    return json_build_object('error', 'already_taken');
+  end if;
+
+  select count(*) into v_total from public.trial_exam_questions where trial_exam_id = v_reg.trial_exam_id;
+
+  for v_answer in select * from jsonb_to_recordset(p_answers) as x(question_id bigint, selected_index int)
+  loop
+    select correct_index into v_correct_idx from public.trial_exam_questions where id = v_answer.question_id;
+    if v_correct_idx is not null then
+      if v_correct_idx = v_answer.selected_index then
+        v_correct := v_correct + 1;
+      else
+        v_wrong := v_wrong + 1;
+      end if;
+    end if;
+  end loop;
+
+  update public.trial_exam_registrations
+    set correct_count = v_correct, wrong_count = v_wrong, total_questions = v_total
+    where id = p_registration_id;
+
+  return json_build_object('correct_count', v_correct, 'wrong_count', v_wrong, 'total_questions', v_total);
+end;
+$$;
+
+grant execute on function public.submit_trial_exam_answers(bigint, jsonb) to authenticated;
+
+
 -- ═══════════════════════════════════════════════════════════════════════
--- 18. SON ADDIM (ƏLLƏ, DİQQƏTLİ OLUN) — Bucket-i PUBLIC-dən PRIVATE-ə keçirin
+-- 20. SON ADDIM (ƏLLƏ, DİQQƏTLİ OLUN) — Bucket-i PUBLIC-dən PRIVATE-ə keçirin
 -- ───────────────────────────────────────────────────────────────────────
 -- Yuxarıdakı bütün policy-lər tətbiq olunub yoxlanmadan bunu icra ETMƏYİN.
 -- index.html artıq signed URL istifadə edir, ona görə bu addımdan sonra da

@@ -941,6 +941,53 @@
       border-color: var(--navy);
     }
 
+    /* Sınaq (quiz) sual seçimləri — .radio-opt-dan fərqli olaraq şaquli
+       düzülür, uzun mətnli seçimlər üçün daha uyğundur. */
+    .quiz-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 13px 14px;
+      border: 1.5px solid var(--line);
+      border-radius: 12px;
+      font-size: 14px;
+      color: var(--ink);
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+      margin-bottom: 10px;
+    }
+
+    .quiz-option:hover {
+      border-color: var(--teal);
+    }
+
+    .quiz-option.sel {
+      background: var(--teal-bg);
+      border-color: var(--teal);
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    .quiz-option-letter {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--surface-2);
+      color: var(--ink-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+      transition: background .15s, color .15s;
+    }
+
+    .quiz-option.sel .quiz-option-letter {
+      background: var(--teal);
+      color: #fff;
+    }
+
     .summary-row {
       display: flex;
       justify-content: space-between;
