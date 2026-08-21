@@ -853,9 +853,47 @@ create policy "trial_reg_delete_own_pending_or_staff"
 -- ilə göndərir (yoxlama serverdə olur). Beləcə şəbəkə sorğularına baxsa belə
 -- tələbə düzgün cavabı əvvəlcədən görə bilməz.
 
+-- ─── SUAL BAZASI (question bank) — YÖS/SAT/İELTS/TOEFL/DİM kimi paylaşılan hovuzlar ──
+-- Konkret sınaq imtahanından (trial_exams) AYRI, təkrar istifadə edilən sual
+-- kolleksiyaları. Məs. "YÖS" bazasına 500 sual yükləyirsiniz, sonra hər ay
+-- yaratdığınız yeni "YÖS Sentyabr sınağı", "YÖS Oktyabr sınağı" və s. HAMISI
+-- eyni bazadan (fərqli tərkib qaydaları ilə) random sual çəkə bilər — hər
+-- yeni sınaq üçün sualları YENIDƏN yükləməyə ehtiyac qalmır.
+create table if not exists public.question_banks (
+  id bigint generated always as identity primary key,
+  name text not null unique,
+  created_at timestamptz not null default now()
+);
+
+alter table public.question_banks enable row level security;
+
+drop policy if exists "question_banks_all_staff" on public.question_banks;
+create policy "question_banks_all_staff"
+  on public.question_banks for all
+  to authenticated
+  using (public.is_staff_or_admin())
+  with check (public.is_staff_or_admin());
+
+-- Başlanğıc olaraq 5 tanınmış imtahan adı ilə boş baza yaradılır (yalnız AD —
+-- kateqoriya/sual sayı kimi konkret ədədlər YAZILMIR, çünki bunlar mərkəzdən-
+-- mərkəzə/universitetdən-universitetə dəyişir; sualları və kateqoriyaları
+-- admin/staff özü yükləyir).
+insert into public.question_banks (name)
+select v.name from (values ('YÖS'), ('SAT'), ('IELTS'), ('TOEFL'), ('DİM')) as v(name)
+where not exists (select 1 from public.question_banks where name = v.name);
+
+-- Konkret sınaq imtahanı (trial_exams) istəyə bağlı bir bazaya bağlanır —
+-- bağlanıbsa random seçim ORADAN, bağlanmayıbsa (əvvəlki kimi) imtahanın
+-- ÖZ birbaşa yüklənmiş suallarından edilir (bax: get_trial_exam_questions()).
+alter table public.trial_exams add column if not exists question_bank_id bigint references public.question_banks(id) on delete set null;
+
 create table if not exists public.trial_exam_questions (
   id bigint generated always as identity primary key,
-  trial_exam_id bigint not null references public.trial_exams(id) on delete cascade,
+  -- Ya BİR konkret sınaq imtahanına (trial_exam_id), ya da paylaşılan bir
+  -- bazaya (question_bank_id) aiddir — heç vaxt ikisinə birdən. Tətbiq
+  -- kodu bunu təmin edir (insert zamanı yalnız biri doldurulur).
+  trial_exam_id bigint references public.trial_exams(id) on delete cascade,
+  question_bank_id bigint references public.question_banks(id) on delete cascade,
   question_text text not null,
   image_url text,
   -- Dinləmə tipli suallar üçün (məs. IELTS/TOEFL Listening tərzi) — istəyə bağlı.
@@ -869,12 +907,16 @@ create table if not exists public.trial_exam_questions (
   created_at timestamptz not null default now()
 );
 
--- Cədvəl əvvəlki SQL icrasında (şəkil/səs/kateqoriya dəstəyi olmadan)
+-- Cədvəl əvvəlki SQL icrasında (şəkil/səs/kateqoriya/baza dəstəyi olmadan)
 -- yaradılmış ola bilər — "create table if not exists" bu halda sütunları
 -- əlavə etməz, ona görə əlavə təminat:
 alter table public.trial_exam_questions add column if not exists image_url text;
 alter table public.trial_exam_questions add column if not exists audio_url text;
 alter table public.trial_exam_questions add column if not exists category text;
+alter table public.trial_exam_questions add column if not exists question_bank_id bigint references public.question_banks(id) on delete cascade;
+-- trial_exam_id əvvəllər "not null" idi — indi sual bir bazaya da aid ola
+-- bilər deyə bu tələb götürülür (mövcud sətirlər təsirlənmir):
+alter table public.trial_exam_questions alter column trial_exam_id drop not null;
 
 alter table public.trial_exam_questions enable row level security;
 
@@ -1054,20 +1096,27 @@ begin
   if v_started_at is null then
     v_started_at := now();
 
-    -- Sual dəstini bu cəhd üçün BİR DƏFƏLİK dondur.
+    -- Sual dəstini bu cəhd üçün BİR DƏFƏLİK dondur. İmtahan bir sual bazasına
+    -- (question_bank_id) bağlıdırsa hovuz ORADAN, bağlı deyilsə imtahanın ÖZ
+    -- birbaşa yüklənmiş suallarından (trial_exam_id) çəkilir.
     select exists(select 1 from public.trial_exam_question_rules where trial_exam_id = p_trial_exam_id) into v_has_snapshot;
     if v_has_snapshot then
       for v_rule in select * from public.trial_exam_question_rules where trial_exam_id = p_trial_exam_id loop
         insert into public.trial_exam_registration_questions (registration_id, question_id)
         select v_reg.id, q.id from public.trial_exam_questions q
-          where q.trial_exam_id = p_trial_exam_id and q.category = v_rule.category
+          where q.category = v_rule.category
+            and (
+              (v_exam.question_bank_id is not null and q.question_bank_id = v_exam.question_bank_id)
+              or (v_exam.question_bank_id is null and q.trial_exam_id = p_trial_exam_id)
+            )
           order by random()
           limit v_rule.question_count;
       end loop;
     else
       insert into public.trial_exam_registration_questions (registration_id, question_id)
       select v_reg.id, q.id from public.trial_exam_questions q
-        where q.trial_exam_id = p_trial_exam_id;
+        where (v_exam.question_bank_id is not null and q.question_bank_id = v_exam.question_bank_id)
+           or (v_exam.question_bank_id is null and q.trial_exam_id = p_trial_exam_id);
     end if;
 
     update public.trial_exam_registrations set started_at = v_started_at

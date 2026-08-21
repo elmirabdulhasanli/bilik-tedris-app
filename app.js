@@ -4781,7 +4781,8 @@
       else if (tabId === 'services') loadServicesAdmin();
       else if (tabId === 'news') loadNewsAdmin();
       else if (tabId === 'examresults') loadExamResultsAdmin();
-      else if (tabId === 'trialexams') { loadTrialExamsAdmin(); loadTrialExamRegsAdmin(); }
+      else if (tabId === 'trialexams') { loadTrialExamsAdmin(); loadTrialExamRegsAdmin(); loadTrialExamBankOptions(); }
+      else if (tabId === 'questionbanks') loadQuestionBanksAdmin();
       else if (tabId === 'analytics') loadAnalytics();
     }
 
@@ -5698,18 +5699,23 @@
         return;
       }
 
+      const { data: banks } = await sb.from('question_banks').select('id, name');
+      const bankNameById = {};
+      (banks || []).forEach(b => { bankNameById[b.id] = b.name; });
+
       const card = document.createElement('div');
       card.className = 'admin-card';
       data.forEach(ex => {
+        const bankName = ex.question_bank_id ? (bankNameById[ex.question_bank_id] || '?') : '';
         const row = document.createElement('div');
         row.className = 'admin-card-row';
         row.innerHTML = `
           <div class="admin-card-row-info">
             <p class="admin-row-name">${escapeHtml(ex.name)}${ex.active ? '' : ' (gizli)'}</p>
-            <p class="admin-row-sub">${ex.price_text ? escapeHtml(ex.price_text) + ' · ' : ''}${ex.time_limit_minutes ? ex.time_limit_minutes + ' dəq. · ' : ''}sıra ${ex.sort_order}</p>
+            <p class="admin-row-sub">${ex.price_text ? escapeHtml(ex.price_text) + ' · ' : ''}${ex.time_limit_minutes ? ex.time_limit_minutes + ' dəq. · ' : ''}sıra ${ex.sort_order}${bankName ? ` · 🗂️ ${escapeHtml(bankName)} bazası` : ''}</p>
           </div>
           <div style="display:flex; gap:6px; align-items:center; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end;">
-            <button class="admin-action-btn trialexam-questions-btn" data-id="${ex.id}" data-name="${escapeHtml(ex.name)}">❓ Suallar</button>
+            <button class="admin-action-btn trialexam-questions-btn" data-id="${ex.id}" data-name="${escapeHtml(ex.name)}" data-bank-id="${ex.question_bank_id ?? ''}" data-bank-name="${escapeHtml(bankName)}">❓ Suallar</button>
             <button class="admin-action-btn toggle-trialexam" data-id="${ex.id}" data-active="${ex.active}">${ex.active ? 'Gizlət' : 'Göstər'}</button>
             <button class="admin-action-btn danger del-trialexam" data-id="${ex.id}">Sil</button>
           </div>`;
@@ -5741,11 +5747,15 @@
       });
       listEl.querySelectorAll('.trialexam-questions-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-          currentQuestionsExamId = btn.dataset.id;
+          questionsCtxType = 'exam';
+          questionsCtxId = btn.dataset.id;
+          questionsCtxBankId = btn.dataset.bankId || null;
           document.getElementById('trialexam-questions-title').textContent = 'Sınaq sualları — ' + btn.dataset.name;
+          document.getElementById('trialexam-questions-bank-notice-name').textContent = btn.dataset.bankName || '—';
           document.getElementById('bulk-questions-result').style.display = 'none';
+          updateQuestionsModalMode();
           openModal('trialexam-questions-modal');
-          loadTrialExamQuestionsAdmin();
+          if (!questionsCtxBankId) loadTrialExamQuestionsAdmin();
           loadTrialExamRulesAdmin();
           loadRuleTemplatesDropdown();
         });
@@ -5754,17 +5764,54 @@
 
     /* ═══════════════════════════════════════════════════════════
        ADMIN — SINAQ SUALLARI (interaktiv sınaq üçün)
+       ──────────────────────────────────────────────────────────
+       Bu bölmə (və "Sınaq sualları" modalı) ya bir KONKRET sınaq
+       imtahanının (questionsCtxType='exam'), ya da paylaşılan bir SUAL
+       BAZASININ (questionsCtxType='bank') suallarını idarə edir — eyni
+       kod hər ikisinə xidmət edir. Əgər imtahan bir bazaya bağlıdırsa
+       (questionsCtxBankId dolu), "öz sualları" bölməsi gizlənir və "bu
+       imtahan filan bazadan sual çəkir" bildirişi göstərilir.
     ═══════════════════════════════════════════════════════════ */
-    let currentQuestionsExamId = null;
+    let questionsCtxType = 'exam';
+    let questionsCtxId = null;
+    let questionsCtxBankId = null;
+
+    function questionsPoolScope() {
+      if (questionsCtxType === 'bank') return { column: 'question_bank_id', id: questionsCtxId };
+      if (questionsCtxBankId) return { column: 'question_bank_id', id: questionsCtxBankId };
+      return { column: 'trial_exam_id', id: questionsCtxId };
+    }
+
+    function updateQuestionsModalMode() {
+      const isBankLinkedExam = questionsCtxType === 'exam' && !!questionsCtxBankId;
+      document.getElementById('trialexam-questions-bank-notice').style.display = isBankLinkedExam ? 'block' : 'none';
+      document.getElementById('trialexam-questions-own-pool-section').style.display = isBankLinkedExam ? 'none' : 'block';
+      document.getElementById('trialexam-questions-rules-section').style.display = questionsCtxType === 'bank' ? 'none' : 'block';
+    }
+
+    document.getElementById('trialexam-questions-bank-goto-btn')?.addEventListener('click', () => {
+      if (!questionsCtxBankId) return;
+      const bankId = questionsCtxBankId;
+      const bankName = document.getElementById('trialexam-questions-bank-notice-name').textContent;
+      questionsCtxType = 'bank';
+      questionsCtxId = bankId;
+      questionsCtxBankId = null;
+      document.getElementById('trialexam-questions-title').textContent = 'Sual bazası — ' + bankName;
+      document.getElementById('bulk-questions-result').style.display = 'none';
+      updateQuestionsModalMode();
+      loadTrialExamQuestionsAdmin();
+    });
 
     async function loadTrialExamQuestionsAdmin() {
       const listEl = document.getElementById('admin-trialexam-questions-list');
-      if (!currentQuestionsExamId || !sb) return;
+      if (!questionsCtxId || !sb) return;
+      if (questionsCtxType === 'exam' && questionsCtxBankId) return; // bank-linked exam — managed at the bank instead
       listEl.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line wide"></div><div class="skeleton skeleton-line narrow"></div></div>'.repeat(2);
 
+      const scope = questionsPoolScope();
       const { data, error } = await sb.from('trial_exam_questions')
         .select('*')
-        .eq('trial_exam_id', currentQuestionsExamId)
+        .eq(scope.column, scope.id)
         .order('sort_order', { ascending: true })
         .order('id', { ascending: true });
 
@@ -5782,6 +5829,20 @@
       const categories = [...new Set((data || []).map(q => q.category).filter(Boolean))];
       const catDatalist = document.getElementById('question-category-datalist');
       if (catDatalist) catDatalist.innerHTML = categories.map(c => `<option value="${escapeHtml(c)}">`).join('');
+
+      const summaryEl = document.getElementById('admin-trialexam-category-summary');
+      if (summaryEl) {
+        if (!data || !data.length) {
+          summaryEl.innerHTML = '';
+        } else {
+          const counts = {};
+          data.forEach(q => { const c = q.category || 'Kateqoriyasız'; counts[c] = (counts[c] || 0) + 1; });
+          const chips = Object.entries(counts).map(([c, n]) =>
+            `<span style="display:inline-block; background:var(--surface-2); color:var(--ink-soft); font-size:11px; padding:3px 9px; border-radius:100px; margin:0 6px 6px 0;">${escapeHtml(c)}: <b style="color:var(--ink);">${n}</b></span>`
+          ).join('');
+          summaryEl.innerHTML = chips + `<span style="display:block; font-size:11px; color:var(--ink-soft); margin-top:2px;">Ümumi: ${data.length} sual</span>`;
+        }
+      }
 
       if (!data || !data.length) {
         listEl.innerHTML = '<div class="admin-empty"><span class="empty-icon">❓</span>Hələ sual əlavə edilməyib.</div>';
@@ -5823,7 +5884,7 @@
     }
 
     document.getElementById('add-question-btn')?.addEventListener('click', async () => {
-      if (!sb || !currentQuestionsExamId) return;
+      if (!sb || !questionsCtxId) return;
       const category = document.getElementById('new-question-category').value.trim();
       const questionText = document.getElementById('new-question-text').value.trim();
       const opts = [0, 1, 2, 3].map(i => document.getElementById('new-question-opt-' + i).value.trim());
@@ -5878,8 +5939,9 @@
         audioUrl = pub.publicUrl;
       }
 
+      const scope = questionsPoolScope();
       const { error } = await sb.from('trial_exam_questions').insert({
-        trial_exam_id: parseInt(currentQuestionsExamId, 10),
+        [scope.column]: parseInt(scope.id, 10),
         question_text: questionText,
         image_url: imageUrl,
         audio_url: audioUrl,
@@ -5909,11 +5971,14 @@
     /* ── Sual hovuzu tərkibi (kateqoriya → say qaydaları) ────── */
     async function loadTrialExamRulesAdmin() {
       const listEl = document.getElementById('admin-trialexam-rules-list');
-      if (!currentQuestionsExamId || !sb || !listEl) return;
+      if (questionsCtxType !== 'exam' || !questionsCtxId || !sb || !listEl) return;
 
+      // Qaydalar HƏMİŞƏ imtahana aiddir, amma "hovuzda neçə sual var" yoxlaması
+      // (poolCounts) imtahanın bağlı olduğu bazanın (varsa) suallarına baxır.
+      const scope = questionsPoolScope();
       const [{ data: rules, error: rulesErr }, { data: questions }] = await Promise.all([
-        sb.from('trial_exam_question_rules').select('*').eq('trial_exam_id', currentQuestionsExamId).order('category', { ascending: true }),
-        sb.from('trial_exam_questions').select('category').eq('trial_exam_id', currentQuestionsExamId)
+        sb.from('trial_exam_question_rules').select('*').eq('trial_exam_id', questionsCtxId).order('category', { ascending: true }),
+        sb.from('trial_exam_questions').select('category').eq(scope.column, scope.id)
       ]);
 
       if (rulesErr) {
@@ -5962,7 +6027,7 @@
     }
 
     document.getElementById('add-rule-btn')?.addEventListener('click', async () => {
-      if (!sb || !currentQuestionsExamId) return;
+      if (!sb || !questionsCtxId) return;
       const category = document.getElementById('new-rule-category').value.trim();
       const countRaw = document.getElementById('new-rule-count').value.trim();
       const count = parseInt(countRaw, 10);
@@ -5970,7 +6035,7 @@
       if (!Number.isFinite(count) || count < 1) { toast('Say düzgün deyil', true); return; }
 
       const { error } = await sb.from('trial_exam_question_rules')
-        .insert({ trial_exam_id: parseInt(currentQuestionsExamId, 10), category, question_count: count });
+        .insert({ trial_exam_id: parseInt(questionsCtxId, 10), category, question_count: count });
 
       if (error) {
         toast(error.message.includes('duplicate') || error.code === '23505'
@@ -5998,9 +6063,9 @@
     }
 
     document.getElementById('save-rule-template-btn')?.addEventListener('click', async () => {
-      if (!sb || !currentQuestionsExamId) return;
+      if (!sb || !questionsCtxId) return;
       const { data: rules, error } = await sb.from('trial_exam_question_rules')
-        .select('category, question_count').eq('trial_exam_id', currentQuestionsExamId);
+        .select('category, question_count').eq('trial_exam_id', questionsCtxId);
       if (error) { toast('Xəta: ' + error.message, true); return; }
       if (!rules || !rules.length) { toast('Saxlamaq üçün əvvəlcə ən azı bir qayda əlavə edin', true); return; }
 
@@ -6019,7 +6084,7 @@
     });
 
     document.getElementById('apply-rule-template-btn')?.addEventListener('click', async () => {
-      if (!sb || !currentQuestionsExamId) return;
+      if (!sb || !questionsCtxId) return;
       const sel = document.getElementById('rule-template-select');
       const templateId = sel.value;
       if (!templateId) { toast('Şablon seçin', true); return; }
@@ -6027,12 +6092,12 @@
       if (!template) return;
 
       const { data: existing } = await sb.from('trial_exam_question_rules')
-        .select('category').eq('trial_exam_id', currentQuestionsExamId);
+        .select('category').eq('trial_exam_id', questionsCtxId);
       const existingCats = new Set((existing || []).map(r => r.category));
 
       const toInsert = (template.rules || [])
         .filter(r => r.category && r.question_count && !existingCats.has(r.category))
-        .map(r => ({ trial_exam_id: parseInt(currentQuestionsExamId, 10), category: r.category, question_count: r.question_count }));
+        .map(r => ({ trial_exam_id: parseInt(questionsCtxId, 10), category: r.category, question_count: r.question_count }));
 
       if (!toInsert.length) { toast('Bu şablondakı kateqoriyalar artıq mövcuddur', true); return; }
 
@@ -6196,7 +6261,7 @@
     }
 
     document.getElementById('bulk-questions-upload-btn')?.addEventListener('click', async () => {
-      if (!sb || !currentQuestionsExamId) return;
+      if (!sb || !questionsCtxId) return;
       const fileInp = document.getElementById('bulk-questions-file');
       const file = fileInp.files && fileInp.files[0];
       const resultEl = document.getElementById('bulk-questions-result');
@@ -6256,8 +6321,9 @@
         return;
       }
 
+      const bulkScope = questionsPoolScope();
       const toInsert = parsedRows.map(q => ({
-        trial_exam_id: parseInt(currentQuestionsExamId, 10),
+        [bulkScope.column]: parseInt(bulkScope.id, 10),
         question_text: q.question_text,
         category: q.category || null,
         image_url: q.image_url || null,
@@ -6293,18 +6359,28 @@
       loadTrialExamRulesAdmin();
     });
 
+    async function loadTrialExamBankOptions() {
+      const sel = document.getElementById('new-trialexam-bank');
+      if (!sb || !sel) return;
+      const { data } = await sb.from('question_banks').select('*').order('name', { ascending: true });
+      sel.innerHTML = '<option value="">— Baza seçilməyib (öz sualları) —</option>' +
+        (data || []).map(b => `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
+    }
+
     document.getElementById('add-trialexam-btn')?.addEventListener('click', async () => {
       const name = document.getElementById('new-trialexam-name').value.trim();
       const price = document.getElementById('new-trialexam-price').value.trim();
       const desc = document.getElementById('new-trialexam-desc').value.trim();
       const timeLimitRaw = document.getElementById('new-trialexam-timelimit').value.trim();
       const timeLimit = timeLimitRaw ? parseInt(timeLimitRaw, 10) : null;
+      const bankIdRaw = document.getElementById('new-trialexam-bank').value;
+      const bankId = bankIdRaw ? parseInt(bankIdRaw, 10) : null;
       if (!name) { toast('Ad yazın', true); return; }
       if (timeLimitRaw && (!Number.isFinite(timeLimit) || timeLimit < 1)) { toast('Vaxt limiti düzgün deyil', true); return; }
       if (!sb) return;
 
       const { error } = await sb.from('trial_exams')
-        .insert({ name, price_text: price || null, description: desc || null, time_limit_minutes: timeLimit, active: true });
+        .insert({ name, price_text: price || null, description: desc || null, time_limit_minutes: timeLimit, question_bank_id: bankId, active: true });
 
       if (error) { toast('Xəta: ' + error.message, true); return; }
       logAudit('Sınaq imtahanı əlavə edildi', name);
@@ -6312,6 +6388,7 @@
       document.getElementById('new-trialexam-price').value = '';
       document.getElementById('new-trialexam-desc').value = '';
       document.getElementById('new-trialexam-timelimit').value = '';
+      document.getElementById('new-trialexam-bank').value = '';
       toast('✓ Sınaq imtahanı əlavə edildi');
       loadTrialExamsAdmin();
       loadTrialExams();
@@ -6413,6 +6490,100 @@
         });
       });
     }
+
+    /* ═══════════════════════════════════════════════════════════
+       ADMIN — SUAL BAZASI (YÖS, SAT, İELTS, TOEFL, DİM və s.)
+       ──────────────────────────────────────────────────────────
+       Konkret sınaq imtahanından ayrı, təkrar istifadə edilən sual
+       kolleksiyaları. "❓ Suallar" düyməsi eyni "Sınaq sualları"
+       modalını "bank" rejimində açır (bax: questionsPoolScope()).
+    ═══════════════════════════════════════════════════════════ */
+    async function loadQuestionBanksAdmin() {
+      const listEl = document.getElementById('admin-questionbanks-list');
+      if (!sb || !listEl) return;
+      listEl.innerHTML = '<div class="skeleton-card"><div class="skeleton skeleton-line wide"></div><div class="skeleton skeleton-line narrow"></div></div>'.repeat(3);
+
+      const [{ data: banks, error }, { data: questions }] = await Promise.all([
+        sb.from('question_banks').select('*').order('name', { ascending: true }),
+        sb.from('trial_exam_questions').select('question_bank_id').not('question_bank_id', 'is', null)
+      ]);
+
+      if (error) {
+        listEl.innerHTML = `
+          <div class="admin-empty" style="text-align:left; padding:16px;">
+            <span class="empty-icon">❌</span>
+            <b>Cədvəl tapılmadı</b><br>
+            <span style="font-size:12px; color:var(--ink-soft);">${escapeHtml(error.message)}</span><br><br>
+            <span style="font-size:11px; color:var(--ink-soft);">
+              <b>supabase-security-setup.sql</b> faylını Supabase → SQL Editor-da icra edin.</span>
+          </div>`;
+        return;
+      }
+      if (!banks || !banks.length) {
+        listEl.innerHTML = '<div class="admin-empty"><span class="empty-icon">🗂️</span>Hələ baza əlavə edilməyib.</div>';
+        return;
+      }
+
+      const countByBank = {};
+      (questions || []).forEach(q => { countByBank[q.question_bank_id] = (countByBank[q.question_bank_id] || 0) + 1; });
+
+      const card = document.createElement('div');
+      card.className = 'admin-card';
+      banks.forEach(b => {
+        const row = document.createElement('div');
+        row.className = 'admin-card-row';
+        row.innerHTML = `
+          <div class="admin-card-row-info">
+            <p class="admin-row-name">${escapeHtml(b.name)}</p>
+            <p class="admin-row-sub">${countByBank[b.id] || 0} sual</p>
+          </div>
+          <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
+            <button class="admin-action-btn questionbank-questions-btn" data-id="${b.id}" data-name="${escapeHtml(b.name)}">❓ Suallar</button>
+            <button class="admin-action-btn danger del-questionbank" data-id="${b.id}" data-name="${escapeHtml(b.name)}">Sil</button>
+          </div>`;
+        card.appendChild(row);
+      });
+      listEl.innerHTML = '';
+      listEl.appendChild(card);
+
+      listEl.querySelectorAll('.questionbank-questions-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          questionsCtxType = 'bank';
+          questionsCtxId = btn.dataset.id;
+          questionsCtxBankId = null;
+          document.getElementById('trialexam-questions-title').textContent = 'Sual bazası — ' + btn.dataset.name;
+          document.getElementById('bulk-questions-result').style.display = 'none';
+          updateQuestionsModalMode();
+          openModal('trialexam-questions-modal');
+          loadTrialExamQuestionsAdmin();
+        });
+      });
+      listEl.querySelectorAll('.del-questionbank').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm(`"${btn.dataset.name}" bazasını silmək istədiyinizə əminsiniz? Bazadakı BÜTÜN suallar da silinəcək.`)) return;
+          await sb.from('question_banks').delete().eq('id', btn.dataset.id);
+          logAudit('Sual bazası silindi', btn.dataset.name);
+          toast('✓ Silindi');
+          loadQuestionBanksAdmin();
+        });
+      });
+    }
+
+    document.getElementById('add-questionbank-btn')?.addEventListener('click', async () => {
+      if (!sb) return;
+      const name = document.getElementById('new-questionbank-name').value.trim();
+      if (!name) { toast('Ad yazın', true); return; }
+
+      const { error } = await sb.from('question_banks').insert({ name });
+      if (error) {
+        toast(error.code === '23505' ? 'Bu adda baza artıq var' : 'Xəta: ' + error.message, true);
+        return;
+      }
+      logAudit('Sual bazası əlavə edildi', name);
+      document.getElementById('new-questionbank-name').value = '';
+      toast('✓ Baza əlavə edildi');
+      loadQuestionBanksAdmin();
+    });
 
     // Doğru/səhv/ümumi say ilə faiz hesablayıb qısa xülasə sətri hazırlayır —
     // həm admin siyahısında, həm tələbə kataloqunda, həm bildirişdə istifadə olunur.
