@@ -1625,7 +1625,7 @@
       margin-bottom: 5px;
     }
 
-    .admin-field input,
+    .admin-field input:not([type="radio"]):not([type="checkbox"]),
     .admin-field select {
       width: 100%;
       padding: 9px 11px;

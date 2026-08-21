@@ -760,10 +760,14 @@ create table if not exists public.trial_exams (
   name text not null,
   description text,
   price_text text,
+  time_limit_minutes int,
   sort_order int not null default 0,
   active boolean not null default true,
   created_at timestamptz not null default now()
 );
+
+-- Cədvəl əvvəlki SQL icrasında (vaxt limiti dəstəyi olmadan) yaradılmış ola bilər:
+alter table public.trial_exams add column if not exists time_limit_minutes int;
 
 alter table public.trial_exams enable row level security;
 
@@ -790,9 +794,16 @@ create table if not exists public.trial_exam_registrations (
   correct_count int,
   wrong_count int,
   total_questions int,
+  -- Tələbə sualları İLK dəfə açanda (get_trial_exam_questions) yazılır —
+  -- vaxt limitinin başlanğıcı budur. Admin "yenidən cəhdə icazə ver" edəndə
+  -- correct_count/wrong_count/total_questions ilə birlikdə null-a qaytarılır.
+  started_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Cədvəl əvvəlki SQL icrasında (vaxt limiti dəstəyi olmadan) yaradılmış ola bilər:
+alter table public.trial_exam_registrations add column if not exists started_at timestamptz;
 
 alter table public.trial_exam_registrations enable row level security;
 
@@ -846,11 +857,24 @@ create table if not exists public.trial_exam_questions (
   id bigint generated always as identity primary key,
   trial_exam_id bigint not null references public.trial_exams(id) on delete cascade,
   question_text text not null,
+  image_url text,
+  -- Dinləmə tipli suallar üçün (məs. IELTS/TOEFL Listening tərzi) — istəyə bağlı.
+  audio_url text,
+  -- Boşdursa "ümumi hovuz" sayılır. Kateqoriya sərbəst mətndir (admin özü
+  -- yazır, məs. "Riyaziyyat", "IQ", "Coğrafiya") — bax: trial_exam_question_rules.
+  category text,
   options jsonb not null,
   correct_index int not null,
   sort_order int not null default 0,
   created_at timestamptz not null default now()
 );
+
+-- Cədvəl əvvəlki SQL icrasında (şəkil/səs/kateqoriya dəstəyi olmadan)
+-- yaradılmış ola bilər — "create table if not exists" bu halda sütunları
+-- əlavə etməz, ona görə əlavə təminat:
+alter table public.trial_exam_questions add column if not exists image_url text;
+alter table public.trial_exam_questions add column if not exists audio_url text;
+alter table public.trial_exam_questions add column if not exists category text;
 
 alter table public.trial_exam_questions enable row level security;
 
@@ -861,8 +885,136 @@ create policy "trial_questions_all_staff"
   using (public.is_staff_or_admin())
   with check (public.is_staff_or_admin());
 
+-- ─── SUAL HOVUZU — kateqoriyaya görə say qaydaları + hər tələbəyə random seçim ──
+-- Admin "bu imtahanda Riyaziyyatdan 10, IQ-dan 5, Coğrafiyadan 5 sual olsun"
+-- kimi qayda təyin edir (trial_exam_question_rules). Tələbə sınağı İLK dəfə
+-- açanda sistem bu qaydalara görə hovuzdan RANDOM sual seçib
+-- trial_exam_registration_questions-a "dondurur" — beləcə səhifəni yeniləsə
+-- belə eyni suallarla qarşılaşır, amma iki tələbə adətən fərqli suallar alır.
+-- Heç bir qayda yoxdursa (adi/köhnə sınaqlar) həmin imtahanın BÜTÜN sualları
+-- istifadə olunur — geriyə uyğunluq üçün.
+
+create table if not exists public.trial_exam_question_rules (
+  id bigint generated always as identity primary key,
+  trial_exam_id bigint not null references public.trial_exams(id) on delete cascade,
+  category text not null,
+  question_count int not null check (question_count > 0),
+  created_at timestamptz not null default now(),
+  unique (trial_exam_id, category)
+);
+
+alter table public.trial_exam_question_rules enable row level security;
+
+drop policy if exists "trial_question_rules_all_staff" on public.trial_exam_question_rules;
+create policy "trial_question_rules_all_staff"
+  on public.trial_exam_question_rules for all
+  to authenticated
+  using (public.is_staff_or_admin())
+  with check (public.is_staff_or_admin());
+
+-- ─── ADLANDIRILMIŞ TƏRKİB ŞABLONLARI (YÖS, SAT, DİM və s.) ───────────────
+-- Mərkəz öz bildiyi konkret imtahan formatını (məs. "YÖS — Bilkənt" üçün
+-- Riyaziyyat/Həndəsə/IQ say bölgüsü) BİR DƏFƏ "Riyaziyyat: 30, Həndəsə: 25,
+-- IQ: 25" kimi şablon olaraq saxlayır, sonra istənilən yeni sınaq imtahanı
+-- yaradanda bir kliklə tətbiq edir. Qəsdən HEÇ bir konkret imtahan (YÖS/SAT/
+-- IELTS/TOEFL/DİM) formatı əvvəlcədən doldurulmayıb — bu beynəlxalq
+-- imtahanların dəqiq sual bölgüsü universitetdən/ilə dəyişir və köhnəlir,
+-- ona görə mərkəzin özünün dəqiq bildiyi formatı yazması daha etibarlıdır.
+create table if not exists public.trial_exam_rule_templates (
+  id bigint generated always as identity primary key,
+  name text not null unique,
+  rules jsonb not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.trial_exam_rule_templates enable row level security;
+
+drop policy if exists "trial_rule_templates_all_staff" on public.trial_exam_rule_templates;
+create policy "trial_rule_templates_all_staff"
+  on public.trial_exam_rule_templates for all
+  to authenticated
+  using (public.is_staff_or_admin())
+  with check (public.is_staff_or_admin());
+
+-- Bir qeydiyyata (cəhdə) faktiki HANSI sualların verildiyinin dondurulmuş qeydi.
+create table if not exists public.trial_exam_registration_questions (
+  registration_id bigint not null references public.trial_exam_registrations(id) on delete cascade,
+  question_id bigint not null references public.trial_exam_questions(id) on delete cascade,
+  primary key (registration_id, question_id)
+);
+
+alter table public.trial_exam_registration_questions enable row level security;
+
+-- Tələbə YALNIZ öz cəhdinə aid sualların ID-lərini görə bilər (sualın özünü
+-- yox — bu, submit_trial_exam_answers-in daxili yoxlaması üçündür).
+drop policy if exists "trial_reg_questions_select_own_or_staff" on public.trial_exam_registration_questions;
+create policy "trial_reg_questions_select_own_or_staff"
+  on public.trial_exam_registration_questions for select
+  to authenticated
+  using (
+    public.is_staff_or_admin()
+    or exists (
+      select 1 from public.trial_exam_registrations r
+      where r.id = registration_id and r.student_email = auth.email()
+    )
+  );
+
+drop policy if exists "trial_reg_questions_all_staff" on public.trial_exam_registration_questions;
+create policy "trial_reg_questions_all_staff"
+  on public.trial_exam_registration_questions for all
+  to authenticated
+  using (public.is_staff_or_admin())
+  with check (public.is_staff_or_admin());
+
+-- Sual şəkilləri üçün public bucket (məs. qrafik/xəritə tələb edən suallar).
+insert into storage.buckets (id, name, public)
+  values ('QuestionImages', 'QuestionImages', true)
+  on conflict (id) do update set public = true;
+
+drop policy if exists "questionimages_bucket_select_all" on storage.objects;
+create policy "questionimages_bucket_select_all"
+  on storage.objects for select
+  to public
+  using (bucket_id = 'QuestionImages');
+
+drop policy if exists "questionimages_bucket_write_staff" on storage.objects;
+create policy "questionimages_bucket_write_staff"
+  on storage.objects for all
+  to authenticated
+  using (bucket_id = 'QuestionImages' and public.is_staff_or_admin())
+  with check (bucket_id = 'QuestionImages' and public.is_staff_or_admin());
+
+update storage.buckets set file_size_limit = 8388608 where id = 'QuestionImages';
+
+-- Sual səs yazıları üçün public bucket (dinləmə tipli suallar).
+insert into storage.buckets (id, name, public)
+  values ('QuestionAudio', 'QuestionAudio', true)
+  on conflict (id) do update set public = true;
+
+drop policy if exists "questionaudio_bucket_select_all" on storage.objects;
+create policy "questionaudio_bucket_select_all"
+  on storage.objects for select
+  to public
+  using (bucket_id = 'QuestionAudio');
+
+drop policy if exists "questionaudio_bucket_write_staff" on storage.objects;
+create policy "questionaudio_bucket_write_staff"
+  on storage.objects for all
+  to authenticated
+  using (bucket_id = 'QuestionAudio' and public.is_staff_or_admin())
+  with check (bucket_id = 'QuestionAudio' and public.is_staff_or_admin());
+
+update storage.buckets set file_size_limit = 20971520 where id = 'QuestionAudio';
+
 -- Yalnız ödənişi təsdiqlənmiş, hələ imtahanı verməmiş tələbəyə sualları
--- (doğru cavab OLMADAN) qaytarır.
+-- (doğru cavab OLMADAN) qaytarır. İlk açılışda vaxt sayğacı (started_at)
+-- başladılır VƏ sual dəsti "dondurulur": trial_exam_question_rules varsa
+-- hər kateqoriyadan random sayda sual seçilir, yoxdursa imtahanın BÜTÜN
+-- sualları istifadə olunur — hər iki halda seçim
+-- trial_exam_registration_questions-a yazılır ki, səhifə yenilənəndə eyni
+-- suallar qalsın və iki tələbə adətən fərqli suallar alsın. Vaxt limiti
+-- keçibsə (tələbə imtahanı bağlayıb sonra qayıdıbsa) cəhd avtomatik
+-- "hamısı səhv" kimi bağlanır ki, geri qayıdıb əlavə vaxt qazana bilməsin.
 create or replace function public.get_trial_exam_questions(p_trial_exam_id bigint)
 returns json
 language plpgsql
@@ -872,12 +1024,22 @@ as $$
 declare
   v_email text := auth.email();
   v_reg record;
+  v_exam record;
   v_questions json;
+  v_total int;
+  v_started_at timestamptz;
+  v_rule record;
+  v_has_snapshot boolean;
 begin
+  -- "for update" — iki eyni vaxtda çağırış (məs. cüt-klik, iki tab) sual
+  -- dəstinin İKİ DƏFƏ (fərqli random seçimlərlə) yazılmasının qarşısını alır:
+  -- ikinci çağırış birincinin bitməsini gözləyir, onda artıq started_at
+  -- dolu olur və random seçim təkrarlanmır.
   select * into v_reg from public.trial_exam_registrations
     where trial_exam_id = p_trial_exam_id and student_email = v_email
     order by created_at desc
-    limit 1;
+    limit 1
+    for update;
 
   if v_reg is null or v_reg.payment_status <> 'ödənilib' then
     return json_build_object('error', 'not_eligible');
@@ -886,12 +1048,51 @@ begin
     return json_build_object('error', 'already_taken');
   end if;
 
-  select json_agg(json_build_object('id', id, 'question_text', question_text, 'options', options) order by sort_order, id)
-    into v_questions
-    from public.trial_exam_questions
-    where trial_exam_id = p_trial_exam_id;
+  select * into v_exam from public.trial_exams where id = p_trial_exam_id;
+  v_started_at := v_reg.started_at;
 
-  return json_build_object('registration_id', v_reg.id, 'questions', coalesce(v_questions, '[]'::json));
+  if v_started_at is null then
+    v_started_at := now();
+
+    -- Sual dəstini bu cəhd üçün BİR DƏFƏLİK dondur.
+    select exists(select 1 from public.trial_exam_question_rules where trial_exam_id = p_trial_exam_id) into v_has_snapshot;
+    if v_has_snapshot then
+      for v_rule in select * from public.trial_exam_question_rules where trial_exam_id = p_trial_exam_id loop
+        insert into public.trial_exam_registration_questions (registration_id, question_id)
+        select v_reg.id, q.id from public.trial_exam_questions q
+          where q.trial_exam_id = p_trial_exam_id and q.category = v_rule.category
+          order by random()
+          limit v_rule.question_count;
+      end loop;
+    else
+      insert into public.trial_exam_registration_questions (registration_id, question_id)
+      select v_reg.id, q.id from public.trial_exam_questions q
+        where q.trial_exam_id = p_trial_exam_id;
+    end if;
+
+    update public.trial_exam_registrations set started_at = v_started_at
+      where id = v_reg.id;
+  elsif v_exam.time_limit_minutes is not null
+    and now() > v_started_at + (v_exam.time_limit_minutes || ' minutes')::interval then
+    select count(*) into v_total from public.trial_exam_registration_questions where registration_id = v_reg.id;
+    update public.trial_exam_registrations
+      set correct_count = 0, wrong_count = v_total, total_questions = v_total
+      where id = v_reg.id;
+    return json_build_object('error', 'time_expired');
+  end if;
+
+  select json_agg(json_build_object('id', q.id, 'question_text', q.question_text, 'image_url', q.image_url, 'audio_url', q.audio_url, 'options', q.options) order by q.id)
+    into v_questions
+    from public.trial_exam_registration_questions rq
+    join public.trial_exam_questions q on q.id = rq.question_id
+    where rq.registration_id = v_reg.id;
+
+  return json_build_object(
+    'registration_id', v_reg.id,
+    'questions', coalesce(v_questions, '[]'::json),
+    'started_at', v_started_at,
+    'time_limit_minutes', v_exam.time_limit_minutes
+  );
 end;
 $$;
 
@@ -901,6 +1102,17 @@ grant execute on function public.get_trial_exam_questions(bigint) to authenticat
 -- serverdə doğru cavablarla müqayisə edib nəticəni hesablayır və
 -- trial_exam_registrations-a yazır. Doğru cavablar heç vaxt cavab olaraq
 -- qaytarılmır — yalnız yekun say (correct/wrong/total).
+--
+-- TƏHLÜKƏSİZLİK: hər `question_id` HƏMİN QEYDİYYATA (cəhdə) DONDURULMUŞ
+-- sual dəstinə (`trial_exam_registration_questions`) aid olduğu join ilə
+-- yoxlanılır və hər sual `distinct on` ilə YALNIZ BİR DƏFƏ sayılır — əks
+-- halda tələbə başqa (və ya heç mövcud olmayan) sual ID-si göndərərək, ya da
+-- bir sualı çox dəfə təkrarlayaraq balını süni şəkildə artıra bilərdi (məs.
+-- RPC-ni birbaşa çağırıb 50 dəfə eyni asan sualı göndərmək). Random seçim
+-- olan imtahanlarda bu, HƏM DƏ başqa tələbəyə verilmiş (öz dəstində olmayan)
+-- sualın cavabını göndərməyin qarşısını alır. `payment_status` də yenidən
+-- yoxlanılır ki, ödənişi təsdiqlənməmiş tələbə funksiyanı birbaşa çağıraraq
+-- imtahanı "keçmiş" kimi işarələyə bilməsin.
 create or replace function public.submit_trial_exam_answers(p_registration_id bigint, p_answers jsonb)
 returns json
 language plpgsql
@@ -913,30 +1125,32 @@ declare
   v_total int;
   v_correct int := 0;
   v_wrong int := 0;
-  v_answer record;
-  v_correct_idx int;
 begin
-  select * into v_reg from public.trial_exam_registrations where id = p_registration_id;
+  select * into v_reg from public.trial_exam_registrations where id = p_registration_id for update;
   if v_reg is null or v_reg.student_email <> v_email then
     return json_build_object('error', 'not_allowed');
+  end if;
+  if v_reg.payment_status <> 'ödənilib' then
+    return json_build_object('error', 'not_eligible');
   end if;
   if v_reg.total_questions is not null then
     return json_build_object('error', 'already_taken');
   end if;
 
-  select count(*) into v_total from public.trial_exam_questions where trial_exam_id = v_reg.trial_exam_id;
+  select count(*) into v_total from public.trial_exam_registration_questions where registration_id = p_registration_id;
 
-  for v_answer in select * from jsonb_to_recordset(p_answers) as x(question_id bigint, selected_index int)
-  loop
-    select correct_index into v_correct_idx from public.trial_exam_questions where id = v_answer.question_id;
-    if v_correct_idx is not null then
-      if v_correct_idx = v_answer.selected_index then
-        v_correct := v_correct + 1;
-      else
-        v_wrong := v_wrong + 1;
-      end if;
-    end if;
-  end loop;
+  select count(*) into v_correct
+  from (
+    select distinct on (q.id) q.id, (a.selected_index = q.correct_index) as is_correct
+    from jsonb_to_recordset(p_answers) as a(question_id bigint, selected_index int)
+    join public.trial_exam_registration_questions rq
+      on rq.registration_id = p_registration_id and rq.question_id = a.question_id
+    join public.trial_exam_questions q on q.id = rq.question_id
+    order by q.id
+  ) matched
+  where is_correct;
+
+  v_wrong := v_total - v_correct;
 
   update public.trial_exam_registrations
     set correct_count = v_correct, wrong_count = v_wrong, total_questions = v_total
@@ -950,17 +1164,13 @@ grant execute on function public.submit_trial_exam_answers(bigint, jsonb) to aut
 
 
 -- ═══════════════════════════════════════════════════════════════════════
--- 20. SON ADDIM (ƏLLƏ, DİQQƏTLİ OLUN) — Bucket-i PUBLIC-dən PRIVATE-ə keçirin
+-- 20. Documents bucket-i PUBLIC-dən PRIVATE-ə keçirilir
 -- ───────────────────────────────────────────────────────────────────────
--- Yuxarıdakı bütün policy-lər tətbiq olunub yoxlanmadan bunu icra ETMƏYİN.
--- index.html artıq signed URL istifadə edir, ona görə bu addımdan sonra da
--- admin panel sənədləri açmağa davam edəcək. Amma əvvəllər paylaşılmış
--- "public" linklər (əgər varsa) bundan sonra işləməyəcək.
---
--- İstədiyiniz zaman, aşağıdakı sətri şərhdən çıxarıb icra edin:
---
--- update storage.buckets set public = false where id = 'Documents';
---
--- Və ya: Supabase Dashboard → Storage → Documents → "..." → Edit bucket →
--- "Public bucket" seçimini söndürün.
+-- Tələbə sənədləri (pasport, sertifikat və s.) şəxsi məlumatdır. index.html
+-- artıq bütün sənəd önizləmə/açma keçidlərində signed URL istifadə edir
+-- (bax: getSignedDocUrl()), ona görə bu dəyişiklikdən sonra da admin panel
+-- sənədləri açmağa davam edəcək — funksionallıq POZULMUR. Yalnız əvvəllər
+-- paylaşılmış "public" linklər (əgər varsa) bundan sonra işləməyəcək.
+-- Bucket artıq private-dirsə bu sətir sadəcə heç nə dəyişmir (təhlükəsiz).
+update storage.buckets set public = false where id = 'Documents';
 -- ═══════════════════════════════════════════════════════════════════════

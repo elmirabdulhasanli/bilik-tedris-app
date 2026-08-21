@@ -281,8 +281,11 @@
         <button class="link-back" id="trialexam-take-exit-btn" data-i18n="trialexams_exit">&larr; Çıx</button>
         <p style="font-size:12px; color:var(--ink-soft); margin:0;" id="trialexam-take-progress">1/1</p>
       </div>
-      <p class="eyebrow" id="trialexam-take-exam-name">—</p>
-      <div class="progress-track" style="margin-bottom:22px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+        <p class="eyebrow" style="margin:0;" id="trialexam-take-exam-name">—</p>
+        <p id="trialexam-take-timer" style="display:none; font-size:13px; font-weight:700; color:var(--ink); background:var(--surface-2); padding:4px 11px; border-radius:100px; white-space:nowrap;">--:--</p>
+      </div>
+      <div class="progress-track" style="margin:8px 0 22px;">
         <div class="progress-fill" id="trialexam-take-progress-fill" style="width:0%;"></div>
       </div>
 
@@ -293,7 +296,14 @@
           <button class="btn ghost" id="trialexam-take-prev-btn" style="flex:1;" data-i18n="trialexams_prev">&larr; Geri</button>
           <button class="btn" id="trialexam-take-next-btn" style="flex:1;" data-i18n="trialexams_next">İrəli &rarr;</button>
         </div>
-        <button class="btn" id="trialexam-take-submit-btn" style="width:100%; margin-top:10px; display:none;" data-i18n="trialexams_submit">Təqdim et</button>
+      </div>
+
+      <div id="trialexam-take-review" style="display:none;">
+        <p style="font-size:13px; color:var(--ink-soft); margin:0 0 4px;" data-i18n="trialexams_review_title">Təqdim etməzdən əvvəl baxış</p>
+        <p style="font-size:12.5px; color:var(--ink-soft); margin:0 0 14px;" id="trialexam-take-review-summary"></p>
+        <div id="trialexam-take-review-grid" style="display:grid; grid-template-columns:repeat(5, 1fr); gap:8px; margin-bottom:20px;"></div>
+        <button class="btn" id="trialexam-take-review-submit-btn" style="width:100%;" data-i18n="trialexams_submit">Təqdim et</button>
+        <button class="btn ghost" id="trialexam-take-review-back-btn" style="width:100%; margin-top:10px;" data-i18n="trialexams_review_back">&larr; Suallara qayıt</button>
       </div>
 
       <div id="trialexam-take-empty" style="display:none; text-align:center; padding:60px 16px;">
@@ -1241,6 +1251,10 @@
               <textarea id="new-trialexam-desc" rows="2" placeholder="Qısa izah..."
                 style="width:100%; border:1px solid var(--line); border-radius:10px; padding:10px; font-family:'Inter',sans-serif; font-size:13px; color:var(--ink); resize:vertical;"></textarea>
             </div>
+            <div class="admin-field">
+              <label>Vaxt limiti — dəqiqə (istəyə bağlı, boş = limitsiz)</label>
+              <input type="number" id="new-trialexam-timelimit" min="1" placeholder="məs. 60">
+            </div>
             <div class="admin-confirm-row">
               <button class="admin-btn-primary" id="add-trialexam-btn">Əlavə et</button>
             </div>
@@ -1553,15 +1567,81 @@
         <div class="admin-modal-handle"></div>
         <p class="admin-modal-title" id="trialexam-questions-title">Sınaq sualları</p>
 
+        <p class="admin-section-title">Sual hovuzu tərkibi (random seçim)</p>
+        <p style="font-size:11.5px; color:var(--ink-soft); margin:0 0 10px; line-height:1.5;">Boş buraxsanız hər tələbəyə imtahanın BÜTÜN sualları göstərilir. Burada qayda əlavə etsəniz, hər tələbə hovuzdan HƏR açılışda deyil, hər CƏHDDƏ bir dəfə — kateqoriyalara görə göstərilən sayda RANDOM sual alır.</p>
+
+        <div class="admin-field">
+          <label>Hazır şablondan tətbiq et (məs. "YÖS", "SAT" — özünüz saxladığınız şablonlar)</label>
+          <div style="display:flex; gap:8px;">
+            <select id="rule-template-select" style="flex:1;"><option value="">— Şablon seçin —</option></select>
+            <button class="admin-btn-ghost" id="apply-rule-template-btn" style="border:1px solid var(--line); white-space:nowrap;">Tətbiq et</button>
+          </div>
+        </div>
+
+        <div id="admin-trialexam-rules-list" style="margin-bottom:10px;"></div>
+        <div class="admin-card" style="padding:14px; margin-bottom:14px;">
+          <div style="display:flex; gap:8px; align-items:flex-end;">
+            <div class="admin-field" style="flex:1; margin-bottom:0;">
+              <label>Kateqoriya</label>
+              <input type="text" id="new-rule-category" list="question-category-datalist" placeholder="məs. Riyaziyyat">
+            </div>
+            <div class="admin-field" style="width:90px; margin-bottom:0;">
+              <label>Say</label>
+              <input type="number" id="new-rule-count" min="1" placeholder="10">
+            </div>
+          </div>
+          <div class="admin-confirm-row" style="margin-top:10px;">
+            <button class="admin-btn-primary" id="add-rule-btn">Qayda əlavə et</button>
+          </div>
+          <div class="admin-confirm-row" style="margin-top:6px;">
+            <button class="admin-btn-ghost" id="save-rule-template-btn" style="border:1px solid var(--line); width:100%;">💾 Hazırkı tərkibi şablon kimi saxla</button>
+          </div>
+        </div>
+
         <p class="admin-section-title">Mövcud suallar</p>
         <div id="admin-trialexam-questions-list" style="margin-bottom:14px;"></div>
+
+        <p class="admin-section-title">Toplu sual yüklə (CSV və ya Word)</p>
+        <div class="admin-card" style="padding:14px; margin-bottom:14px;">
+          <p style="font-size:11.5px; color:var(--ink-soft); margin:0 0 8px; line-height:1.6;">
+            <b>CSV:</b> sütunlar (birinci sətir başlıq) — <b>category, question_text, option_a, option_b, option_c, option_d, correct_letter, image_url, audio_url</b>. <code style="font-size:10.5px;">correct_letter</code> A/B/C/D. <code style="font-size:10.5px;">category</code>/<code style="font-size:10.5px;">image_url</code>/<code style="font-size:10.5px;">audio_url</code> boş qala bilər (URL formatında — faylı əvvəlcə haradasa yerləşdirin).<br><br>
+            <b>Word (.docx):</b> hər sual bu formatda yazılmalıdır (kateqoriya sətri istəyə bağlıdır, təkrar yazılmasa əvvəlki kateqoriya davam edir):
+          </p>
+          <pre style="font-size:10.5px; background:var(--surface-2); padding:8px 10px; border-radius:8px; white-space:pre-wrap; margin:0 0 10px; font-family:'Inter',sans-serif;">Kateqoriya: Riyaziyyat
+1. 2+2 neçə edir?
+A) 3
+B) 4
+C) 5
+D) 6
+Doğru: B</pre>
+          <div class="admin-field">
+            <input type="file" id="bulk-questions-file" accept=".csv,text/csv,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+          </div>
+          <div class="admin-confirm-row">
+            <button class="admin-btn-primary" id="bulk-questions-upload-btn">Yüklə</button>
+          </div>
+          <p id="bulk-questions-result" style="font-size:12px; margin:8px 0 0; display:none;"></p>
+        </div>
 
         <p class="admin-section-title">Yeni sual əlavə et</p>
         <div class="admin-card" style="padding:14px;">
           <div class="admin-field">
+            <label>Kateqoriya (istəyə bağlı — hovuz üçün)</label>
+            <input type="text" id="new-question-category" list="question-category-datalist" placeholder="məs. Riyaziyyat">
+            <datalist id="question-category-datalist"></datalist>
+          </div>
+          <div class="admin-field">
             <label>Sual mətni</label>
             <textarea id="new-question-text" rows="2" placeholder="məs. Azərbaycanın paytaxtı hansıdır?"
               style="width:100%; border:1px solid var(--line); border-radius:10px; padding:10px; font-family:'Inter',sans-serif; font-size:13px; color:var(--ink); resize:vertical;"></textarea>
+          </div>
+          <div class="admin-field">
+            <label>Sualın şəkli (istəyə bağlı)</label>
+            <input type="file" id="new-question-image" accept="image/*">
+          </div>
+          <div class="admin-field">
+            <label>Sualın səs yazısı (istəyə bağlı — dinləmə tipli suallar üçün)</label>
+            <input type="file" id="new-question-audio" accept="audio/*">
           </div>
           <div class="admin-field">
             <label>Seçimlər (doğru olanın qarşısındakı işarəni seçin)</label>
