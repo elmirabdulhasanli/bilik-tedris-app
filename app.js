@@ -654,50 +654,66 @@
       if (metadataName && metadataName.trim()) return metadataName.trim();
       return 'Tələbə';
     }
+    /* Şəbəkə və ya Supabase cavab verməzsə sorğunun sonsuz gözləməsinin
+       qarşısını alır — əks halda düymədəki spinner əbədi fırlanır. */
+    function withTimeout(promise, ms = 15000) {
+      return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Şəbəkə cavab vermədi')), ms))
+      ]);
+    }
+
     document.getElementById('splash-start').addEventListener('click', async () => {
       const btn = document.getElementById('splash-start');
       btn.innerHTML = '<span class="spinner"></span>Yüklənir...';
       btn.disabled = true;
 
-      if (!sb) {
-        document.getElementById('navbar').style.display = 'flex';
-        showScreen('home');
-        btn.innerHTML = 'Başla';
-        btn.disabled = false;
-        return;
-      }
-
-      const { data: { session } } = await sb.auth.getSession();
-
-      btn.innerHTML = 'Başla';
-      btn.disabled = false;
-
-      if (session) {
-        currentEmail = session.user.email;
-        const name = await resolveDisplayName(currentEmail, session.user.user_metadata?.full_name);
-        document.getElementById('home-greeting').textContent = 'Salam, ' + name.split(' ')[0];
-        document.getElementById('profile-name-display').textContent = name;
-        document.getElementById('profile-avatar-initials').textContent = name.charAt(0).toUpperCase();
-        document.getElementById('profile-email-display').textContent = currentEmail;
-        
-        // Auto-fill form fields
-        document.getElementById('f-name').value = name;
-        document.getElementById('f-email').value = currentEmail;
-
-        // Admin/Staff rol yoxlaması
-        const role = await checkUserRole(currentEmail);
-        if (role === 'admin' || role === 'staff') {
-          await enterAdminPanel(role);
-        } else {
+      try {
+        if (!sb) {
           document.getElementById('navbar').style.display = 'flex';
-          fetchDocumentsStatus(currentEmail);
-          if (typeof restoreProfile === 'function') await restoreProfile(currentEmail);
-          if (typeof loadMyConsultations === 'function') loadMyConsultations(); else refreshNotifBadge();
           showScreen('home');
+          return;
         }
-      } else {
+
+        const { data: { session } } = await withTimeout(sb.auth.getSession());
+
+        if (session) {
+          currentEmail = session.user.email;
+          const name = await resolveDisplayName(currentEmail, session.user.user_metadata?.full_name);
+          document.getElementById('home-greeting').textContent = 'Salam, ' + name.split(' ')[0];
+          document.getElementById('profile-name-display').textContent = name;
+          document.getElementById('profile-avatar-initials').textContent = name.charAt(0).toUpperCase();
+          document.getElementById('profile-email-display').textContent = currentEmail;
+
+          // Auto-fill form fields
+          document.getElementById('f-name').value = name;
+          document.getElementById('f-email').value = currentEmail;
+
+          // Admin/Staff rol yoxlaması
+          const role = await checkUserRole(currentEmail);
+          if (role === 'admin' || role === 'staff') {
+            await enterAdminPanel(role);
+          } else {
+            document.getElementById('navbar').style.display = 'flex';
+            fetchDocumentsStatus(currentEmail);
+            if (typeof restoreProfile === 'function') await restoreProfile(currentEmail);
+            if (typeof loadMyConsultations === 'function') loadMyConsultations(); else refreshNotifBadge();
+            showScreen('home');
+          }
+        } else {
+          document.getElementById('navbar').style.display = 'none';
+          showScreen('login');
+        }
+      } catch (e) {
+        // Serverə çatmaq alınmadısa istifadəçi splash ekranında kilidlənməsin —
+        // xəbərdarlıq göstərib giriş ekranına buraxırıq.
+        console.error('Başlanğıc xətası:', e);
+        toast(t('start_connection_error', 'Serverə qoşulmaq alınmadı. İnternet bağlantınızı yoxlayıb yenidən cəhd edin.'), true);
         document.getElementById('navbar').style.display = 'none';
         showScreen('login');
+      } finally {
+        btn.innerHTML = t('splash_start', 'Başla');
+        btn.disabled = false;
       }
     });
 
@@ -720,22 +736,22 @@
       btn.innerHTML = '<span class="spinner"></span>Gözləyin...';
       btn.disabled = true;
 
-      const { data, error } = await sb.auth.signUp({ email, password, options: { data: { full_name: name } } });
+      try {
+        const { error } = await withTimeout(sb.auth.signUp({ email, password, options: { data: { full_name: name } } }));
 
-      btn.innerHTML = 'Qeydiyyatdan keç';
-      btn.disabled = false;
+        if (error) {
+          errEl.textContent = error.message;
+          errEl.style.display = 'block';
+          return;
+        }
 
-      if (error) {
-        errEl.textContent = error.message;
-        errEl.style.display = 'block';
-      } else {
         toast('Hesab uğurla yaradıldı!');
         currentEmail = email;
         document.getElementById('home-greeting').textContent = 'Salam, ' + name.split(' ')[0];
         document.getElementById('profile-name-display').textContent = name;
         document.getElementById('profile-avatar-initials').textContent = name.charAt(0).toUpperCase();
         document.getElementById('profile-email-display').textContent = currentEmail;
-        
+
         // Auto-fill form fields
         document.getElementById('f-name').value = name;
         document.getElementById('f-email').value = currentEmail;
@@ -748,6 +764,13 @@
           document.getElementById('navbar').style.display = 'flex';
           showScreen('home');
         }
+      } catch (e) {
+        console.error('Qeydiyyat xətası:', e);
+        errEl.textContent = t('start_connection_error', 'Serverə qoşulmaq alınmadı. İnternet bağlantınızı yoxlayıb yenidən cəhd edin.');
+        errEl.style.display = 'block';
+      } finally {
+        btn.innerHTML = 'Qeydiyyatdan keç';
+        btn.disabled = false;
       }
     });
 
@@ -796,22 +819,22 @@
       btn.innerHTML = '<span class="spinner"></span>Gözləyin...';
       btn.disabled = true;
 
-      const { data, error } = await sb.auth.signInWithPassword({ email, password });
+      try {
+        const { data, error } = await withTimeout(sb.auth.signInWithPassword({ email, password }));
 
-      btn.innerHTML = 'Daxil ol';
-      btn.disabled = false;
-
-      if (error) {
-        recordFailedLogin(email);
-        const newState = getLoginAttemptState(email);
-        if (newState.lockUntil && Date.now() < newState.lockUntil) {
-          const minsLeft = Math.ceil((newState.lockUntil - Date.now()) / 60000);
-          errEl.textContent = t('login_locked_tpl', 'Çox sınaq oldu — {mins} dəqiqə sonra yenidən cəhd edin.').replace('{mins}', minsLeft);
-        } else {
-          errEl.textContent = 'E-poçt və ya şifrə səhvdir.';
+        if (error) {
+          recordFailedLogin(email);
+          const newState = getLoginAttemptState(email);
+          if (newState.lockUntil && Date.now() < newState.lockUntil) {
+            const minsLeft = Math.ceil((newState.lockUntil - Date.now()) / 60000);
+            errEl.textContent = t('login_locked_tpl', 'Çox sınaq oldu — {mins} dəqiqə sonra yenidən cəhd edin.').replace('{mins}', minsLeft);
+          } else {
+            errEl.textContent = 'E-poçt və ya şifrə səhvdir.';
+          }
+          errEl.style.display = 'block';
+          return;
         }
-        errEl.style.display = 'block';
-      } else {
+
         clearLoginAttempts(email);
         toast('Sistemə daxil oldunuz!');
         currentEmail = email;
@@ -820,7 +843,7 @@
         document.getElementById('profile-name-display').textContent = name;
         document.getElementById('profile-avatar-initials').textContent = name.charAt(0).toUpperCase();
         document.getElementById('profile-email-display').textContent = currentEmail;
-        
+
         // Auto-fill form fields
         document.getElementById('f-name').value = name;
         document.getElementById('f-email').value = currentEmail;
@@ -835,6 +858,13 @@
           if (typeof loadMyConsultations === 'function') loadMyConsultations(); else refreshNotifBadge();
           showScreen('home');
         }
+      } catch (e) {
+        console.error('Giriş xətası:', e);
+        errEl.textContent = t('start_connection_error', 'Serverə qoşulmaq alınmadı. İnternet bağlantınızı yoxlayıb yenidən cəhd edin.');
+        errEl.style.display = 'block';
+      } finally {
+        btn.innerHTML = 'Daxil ol';
+        btn.disabled = false;
       }
     });
 
@@ -873,7 +903,7 @@
       const redirectTo = PRODUCTION_URL;
       let error = null;
       try {
-        ({ error } = await sb.auth.resetPasswordForEmail(email, { redirectTo }));
+        ({ error } = await withTimeout(sb.auth.resetPasswordForEmail(email, { redirectTo })));
       } catch (e) {
         error = e;
       }
@@ -911,16 +941,21 @@
       btn.innerHTML = '<span class="spinner"></span>Yenilənir...';
       btn.disabled = true;
 
-      const { error } = await sb.auth.updateUser({ password: pw1 });
+      try {
+        const { error } = await withTimeout(sb.auth.updateUser({ password: pw1 }));
+        if (error) { errEl.textContent = error.message; errEl.style.display = 'block'; return; }
 
-      btn.innerHTML = 'Şifrəni yenilə';
-      btn.disabled = false;
-
-      if (error) { errEl.textContent = error.message; errEl.style.display = 'block'; return; }
-
-      toast('✓ Şifrəniz yeniləndi! Yenidən daxil olun.');
-      await sb.auth.signOut();
-      setTimeout(() => window.location.href = window.location.href.split('#')[0].split('?')[0], 1200);
+        toast('✓ Şifrəniz yeniləndi! Yenidən daxil olun.');
+        await sb.auth.signOut();
+        setTimeout(() => window.location.href = window.location.href.split('#')[0].split('?')[0], 1200);
+      } catch (e) {
+        console.error('Şifrə yeniləmə xətası:', e);
+        errEl.textContent = t('start_connection_error', 'Serverə qoşulmaq alınmadı. İnternet bağlantınızı yoxlayıb yenidən cəhd edin.');
+        errEl.style.display = 'block';
+      } finally {
+        btn.innerHTML = 'Şifrəni yenilə';
+        btn.disabled = false;
+      }
     });
 
     // Supabase bərpa linkindən qayıdanda avtomatik "yeni şifrə" ekranını göstər
@@ -1278,19 +1313,31 @@
         btn.addEventListener('click', async () => {
           if (!sb || !currentEmail) return;
           btn.disabled = true; btn.textContent = '...';
-          const { error } = await sb.from('trial_exam_registrations')
-            .insert({ trial_exam_id: parseInt(btn.dataset.id, 10), student_email: currentEmail });
-          if (error) { toast('Xəta: ' + error.message, true); loadTrialExams(); return; }
-          toast('✓ ' + t('trialexams_registered_toast', 'Qeydiyyatdan keçdiniz'));
-          loadTrialExams();
+          try {
+            const { error } = await withTimeout(sb.from('trial_exam_registrations')
+              .insert({ trial_exam_id: parseInt(btn.dataset.id, 10), student_email: currentEmail }));
+            if (error) { toast('Xəta: ' + error.message, true); return; }
+            toast('✓ ' + t('trialexams_registered_toast', 'Qeydiyyatdan keçdiniz'));
+          } catch (e) {
+            console.error('Sınaq imtahanı qeydiyyat xətası:', e);
+            toast(t('start_connection_error', 'Serverə qoşulmaq alınmadı. İnternet bağlantınızı yoxlayıb yenidən cəhd edin.'), true);
+          } finally {
+            // Siyahı yenidən qurulur — düymə hər halda ilkin vəziyyətinə qayıdır.
+            loadTrialExams();
+          }
         });
       });
       listEl.querySelectorAll('.trialexam-cancel-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
           if (!sb) return;
           if (!confirm(t('trialexams_cancel_confirm', 'Qeydiyyatı ləğv etmək istədiyinizə əminsiniz?'))) return;
-          await sb.from('trial_exam_registrations').delete().eq('id', btn.dataset.regId);
-          toast('✓ ' + t('trialexams_cancelled_toast', 'Ləğv edildi'));
+          try {
+            await withTimeout(sb.from('trial_exam_registrations').delete().eq('id', btn.dataset.regId));
+            toast('✓ ' + t('trialexams_cancelled_toast', 'Ləğv edildi'));
+          } catch (e) {
+            console.error('Qeydiyyat ləğvi xətası:', e);
+            toast(t('start_connection_error', 'Serverə qoşulmaq alınmadı. İnternet bağlantınızı yoxlayıb yenidən cəhd edin.'), true);
+          }
           loadTrialExams();
         });
       });
@@ -1492,13 +1539,24 @@
         question_id: q.id,
         selected_index: quizState.answers[q.id] === undefined ? -1 : quizState.answers[q.id]
       }));
-      const { data, error } = await sb.rpc('submit_trial_exam_answers', {
-        p_registration_id: quizState.registrationId,
-        p_answers
-      });
-      if (btn) { btn.disabled = false; btn.textContent = t('trialexams_submit', 'Təqdim et'); }
+      let data = null, error = null;
+      try {
+        ({ data, error } = await withTimeout(sb.rpc('submit_trial_exam_answers', {
+          p_registration_id: quizState.registrationId,
+          p_answers
+        })));
+      } catch (e) {
+        console.error('Sınaq təqdim etmə xətası:', e);
+        error = e;
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = t('trialexams_submit', 'Təqdim et'); }
+      }
 
       if (error || !data || data.error) {
+        // Cavablar yaddaşda qalır — tələbə "Təqdim et"i yenidən basa bilər.
+        // Vaxt bitdiyinə görə avtomatik göndərmə uğursuz olubsa, yoxlama
+        // ekranını açırıq ki, təqdim düyməsi əlçatan olsun.
+        if (isAuto) showQuizReview();
         toast(t('trialexams_error_sub', 'Bir az sonra yenidən cəhd edin.'), true);
         return;
       }
@@ -1815,11 +1873,20 @@
             const safeDocName = docName.replace(/[^a-zA-Z0-9]/g, '_');
             const fileName = `${currentEmail}/${safeDocName}_${Date.now()}.${fileExt}`;
 
-            const { error } = await sb.storage.from('Documents').upload(fileName, file);
+            let error = null;
+            try {
+              // Fayl böyük ola bilər — yükləmə üçün daha uzun vaxt verilir.
+              ({ error } = await withTimeout(sb.storage.from('Documents').upload(fileName, file), 120000));
+            } catch (e) {
+              console.error('Sənəd yükləmə xətası:', e);
+              error = { message: t('start_connection_error', 'Serverə qoşulmaq alınmadı. İnternet bağlantınızı yoxlayıb yenidən cəhd edin.') };
+            }
             if (error) {
               toast('Xəta: ' + error.message, true);
               console.error('Supabase Storage Error:', error);
+              stamp.className = 'stamp pending';
               stamp.innerHTML = '&#9675;';
+              inp.value = '';
               return;
             }
             // Bucket private ola bilər — public URL əvəzinə saxlama yolunu (path) saxlayırıq,
@@ -1871,8 +1938,13 @@
           }
 
           updateDocProgress();
-          await dbSaveDocStatus(currentEmail, docName, 'done', fileUrl);
-          if (currentEmail) toast('✓ Sənəd uğurla bazaya yükləndi');
+          try {
+            await withTimeout(dbSaveDocStatus(currentEmail, docName, 'done', fileUrl));
+            if (currentEmail) toast('✓ Sənəd uğurla bazaya yükləndi');
+          } catch (e) {
+            console.error('Sənəd statusu yazıla bilmədi:', e);
+            toast(t('start_connection_error', 'Serverə qoşulmaq alınmadı. İnternet bağlantınızı yoxlayıb yenidən cəhd edin.'), true);
+          }
         });
       }
 
@@ -2093,22 +2165,28 @@
         if (slotError) { showErr(slotError); return; }
 
         btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Yoxlanılır...';
-        const taken = await isSlotTaken(advisorBase, date, time);
-        if (taken) {
-          btn.disabled = false; btn.innerHTML = 'Görüşü təsdiqlə';
-          msg.style.display = 'block'; msg.style.color = 'var(--coral)';
-          msg.textContent = 'Bu tarix və saat üçün artıq başqa görüş var. Zəhmət olmasa başqa saat və ya gün seçin.';
-          return;
-        }
+        try {
+          const taken = await withTimeout(isSlotTaken(advisorBase, date, time));
+          if (taken) {
+            msg.style.display = 'block'; msg.style.color = 'var(--coral)';
+            msg.textContent = 'Bu tarix və saat üçün artıq başqa görüş var. Zəhmət olmasa başqa saat və ya gün seçin.';
+            return;
+          }
 
-        btn.innerHTML = '<span class="spinner"></span>Saxlanılır...';
-        const { error } = await dbSaveConsultation(currentEmail, advisor, date, time);
-        btn.disabled = false; btn.innerHTML = 'Görüşü təsdiqlə';
-        if (error) { msg.style.display = 'block'; msg.style.color = 'var(--coral)'; msg.textContent = 'Xəta baş verdi.'; return; }
-        msg.style.display = 'block'; msg.style.color = 'var(--teal)';
-        msg.textContent = 'Görüş planlaşdırıldı: ' + date + ', saat ' + time + ' (' + type + ').';
-        if (currentEmail) toast('✓ Görüş Supabase-ə saxlanıldı!');
-        loadMyConsultations();
+          btn.innerHTML = '<span class="spinner"></span>Saxlanılır...';
+          const { error } = await withTimeout(dbSaveConsultation(currentEmail, advisor, date, time));
+          if (error) { msg.style.display = 'block'; msg.style.color = 'var(--coral)'; msg.textContent = 'Xəta baş verdi.'; return; }
+          msg.style.display = 'block'; msg.style.color = 'var(--teal)';
+          msg.textContent = 'Görüş planlaşdırıldı: ' + date + ', saat ' + time + ' (' + type + ').';
+          if (currentEmail) toast('✓ Görüş Supabase-ə saxlanıldı!');
+          loadMyConsultations();
+        } catch (e) {
+          console.error('Görüş yazma xətası:', e);
+          msg.style.display = 'block'; msg.style.color = 'var(--coral)';
+          msg.textContent = t('start_connection_error', 'Serverə qoşulmaq alınmadı. İnternet bağlantınızı yoxlayıb yenidən cəhd edin.');
+        } finally {
+          btn.disabled = false; btn.innerHTML = 'Görüşü təsdiqlə';
+        }
       };
     });
 
@@ -2660,21 +2738,27 @@
       // Supabase-ə saxla
       const btn = document.getElementById('submit-onboarding');
       btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Saxlanılır...';
-      const { data, error } = await dbSaveProfile({
-        name, father_name: fatherName || null, email, phone,
-        target_countries: selCountries,
-        target_universities: selUnis,
-        fields: selFields,
-        level, exams, score, budget
-      });
-      btn.disabled = false; btn.textContent = 'Profili tamamla';
+      try {
+        const { error } = await withTimeout(dbSaveProfile({
+          name, father_name: fatherName || null, email, phone,
+          target_countries: selCountries,
+          target_universities: selUnis,
+          fields: selFields,
+          level, exams, score, budget
+        }));
 
-      if (error) { toast('⚠️ Xəta: ' + error.message, true); }
-      else {
-        if (email) { currentEmail = email; }
-        // Profil bazaya düşdü — qaralamaya ehtiyac qalmadı
-        clearOnboardingDraft();
-        toast('✓ Profil uğurla saxlanıldı!');
+        if (error) { toast('⚠️ Xəta: ' + error.message, true); }
+        else {
+          if (email) { currentEmail = email; }
+          // Profil bazaya düşdü — qaralamaya ehtiyac qalmadı
+          clearOnboardingDraft();
+          toast('✓ Profil uğurla saxlanıldı!');
+        }
+      } catch (e) {
+        console.error('Profil saxlama xətası:', e);
+        toast(t('start_connection_error', 'Serverə qoşulmaq alınmadı. İnternet bağlantınızı yoxlayıb yenidən cəhd edin.'), true);
+      } finally {
+        btn.disabled = false; btn.textContent = 'Profili tamamla';
       }
     });
 
@@ -2722,6 +2806,7 @@
         // Splash
         splash_tag: 'Xaricdə təhsil marşrutun — universitet seçimindən viza sənədlərinə qədər bir yerdə.',
         splash_start: 'Başla',
+        start_connection_error: 'Serverə qoşulmaq alınmadı. İnternet bağlantınızı yoxlayıb yenidən cəhd edin.',
         uni_search_ph: '🔍 Universitet axtar...',
         // Auth
         login: 'Giriş',
@@ -2993,6 +3078,7 @@
         years_with_you: '20 years with you',
         splash_tag: 'Your study abroad route — from university selection to visa documents, all in one place.',
         splash_start: 'Start',
+        start_connection_error: 'Could not reach the server. Please check your internet connection and try again.',
         uni_search_ph: '🔍 Search university...',
         login: 'Log in',
         login_sub: 'Sign in to your account',
@@ -3251,6 +3337,7 @@
         years_with_you: '20 лет с вами',
         splash_tag: 'Ваш маршрут обучения за рубежом — от выбора университета до визовых документов, всё в одном месте.',
         splash_start: 'Начать',
+        start_connection_error: 'Не удалось подключиться к серверу. Проверьте интернет-соединение и попробуйте снова.',
         uni_search_ph: '🔍 Поиск университета...',
         login: 'Вход',
         login_sub: 'Войдите в свой аккаунт',
@@ -3509,6 +3596,7 @@
         years_with_you: '20 yıldır sizinle',
         splash_tag: 'Yurt dışı eğitim rotanız — üniversite seçiminden vize belgelerine kadar tek bir yerde.',
         splash_start: 'Başla',
+        start_connection_error: 'Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.',
         uni_search_ph: '🔍 Üniversite ara...',
         login: 'Giriş',
         login_sub: 'Hesabınıza giriş yapın',
@@ -4006,9 +4094,16 @@
       if (!confirm('Bu mesaj bütün tələbələrə göndəriləcək. Davam edilsin?')) return;
       const btn = document.getElementById('announce-send-btn');
       btn.disabled = true; btn.textContent = 'Göndərilir...';
-      const { error } = await sb.from('announcements').insert({ message: text, created_by: currentEmail });
-      btn.disabled = false; btn.textContent = 'Göndər';
-      if (error) { toast('Xəta: ' + error.message, true); return; }
+      let error = null;
+      try {
+        ({ error } = await withTimeout(sb.from('announcements').insert({ message: text, created_by: currentEmail })));
+      } catch (e) {
+        console.error('Elan göndərmə xətası:', e);
+        error = e;
+      } finally {
+        btn.disabled = false; btn.textContent = 'Göndər';
+      }
+      if (error) { toast('Xəta: ' + (error.message || ''), true); return; }
       logAudit('Elan göndərildi', '', text.slice(0, 80));
       toast('✓ Elan bütün tələbələrə göndərildi');
       closeModal('announce-modal');
@@ -4020,9 +4115,14 @@
     // ── Fəaliyyət qeydi (audit log) ────────────────────────────
     async function logAudit(action, target = '', detail = '') {
       if (!sb || !currentEmail) return;
-      await sb.from('audit_log').insert({
-        actor_email: currentEmail, action, target, detail
-      });
+      // Qeyd yazıla bilməsə də əsas əməliyyat pozulmamalıdır.
+      try {
+        await withTimeout(sb.from('audit_log').insert({
+          actor_email: currentEmail, action, target, detail
+        }));
+      } catch (e) {
+        console.error('Audit qeydi yazılmadı:', e);
+      }
     }
 
     async function loadAuditLog() {
@@ -4284,11 +4384,18 @@
         if (!sb || !student.email) return;
         const btn = document.getElementById('modal-parent-link-btn');
         btn.disabled = true; btn.textContent = 'Yaradılır...';
-        const { data, error } = await sb.from('parent_links')
-          .insert({ student_email: student.email, created_by: currentEmail })
-          .select().single();
-        btn.disabled = false; btn.textContent = '🔗 Valideyn linki yarat';
-        if (error) { toast('Xəta: ' + error.message, true); return; }
+        let data = null, error = null;
+        try {
+          ({ data, error } = await withTimeout(sb.from('parent_links')
+            .insert({ student_email: student.email, created_by: currentEmail })
+            .select().single()));
+        } catch (e) {
+          console.error('Valideyn linki xətası:', e);
+          error = e;
+        } finally {
+          btn.disabled = false; btn.textContent = '🔗 Valideyn linki yarat';
+        }
+        if (error || !data) { toast('Xəta: ' + ((error && error.message) || ''), true); return; }
         const link = PRODUCTION_URL.replace(/\/$/, '') + '/?parent=' + data.token;
         logAudit('Valideyn linki yaradıldı', student.email);
         try { await navigator.clipboard.writeText(link); toast('✓ Link kopyalandı'); } catch (e) { /* clipboard əlçatmazdırsa səssizcə keç */ }
@@ -5042,13 +5149,19 @@
 
       // Böyük siyahını hissə-hissə göndəririk ki, sorğu limitini aşmasın
       let inserted = 0, failed = 0;
-      for (let i = 0; i < rows.length; i += 100) {
-        const chunk = rows.slice(i, i + 100);
-        const { error } = await sb.from('universities').upsert(chunk, { onConflict: 'country,name', ignoreDuplicates: true });
-        if (error) failed += chunk.length; else inserted += chunk.length;
+      try {
+        for (let i = 0; i < rows.length; i += 100) {
+          const chunk = rows.slice(i, i + 100);
+          const { error } = await withTimeout(sb.from('universities').upsert(chunk, { onConflict: 'country,name', ignoreDuplicates: true }), 30000);
+          if (error) failed += chunk.length; else inserted += chunk.length;
+        }
+      } catch (e) {
+        console.error('Universitet köçürmə xətası:', e);
+        failed = rows.length - inserted;
+      } finally {
+        btn.disabled = false; btn.textContent = 'Daxili siyahını bazaya köçür';
       }
 
-      btn.disabled = false; btn.textContent = 'Daxili siyahını bazaya köçür';
       logAudit('Universitet siyahısı bazaya köçürüldü', '', inserted + ' universitet');
       toast(failed ? `${inserted} əlavə edildi, ${failed} alınmadı` : `✓ ${inserted} universitet köçürüldü`, !!failed);
       loadUniversitiesAdmin();
@@ -5149,20 +5262,25 @@
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${fileExt}`;
 
-      const { error: upErr } = await sb.storage.from('Achievements').upload(fileName, file);
-      if (upErr) {
-        toast('Xəta: ' + upErr.message, true);
+      let error = null;
+      try {
+        const { error: upErr } = await withTimeout(sb.storage.from('Achievements').upload(fileName, file), 120000);
+        if (upErr) {
+          toast('Xəta: ' + upErr.message, true);
+          return;
+        }
+
+        const { data: pub } = sb.storage.from('Achievements').getPublicUrl(fileName);
+        ({ error } = await withTimeout(sb.from('achievements')
+          .insert({ image_url: pub.publicUrl, caption, sort_order: order, active: true })));
+      } catch (e) {
+        console.error('Nailiyyət əlavə etmə xətası:', e);
+        error = e;
+      } finally {
         btn.disabled = false; btn.textContent = 'Əlavə et';
-        return;
       }
 
-      const { data: pub } = sb.storage.from('Achievements').getPublicUrl(fileName);
-      const { error } = await sb.from('achievements')
-        .insert({ image_url: pub.publicUrl, caption, sort_order: order, active: true });
-
-      btn.disabled = false; btn.textContent = 'Əlavə et';
-
-      if (error) { toast('Xəta: ' + error.message, true); return; }
+      if (error) { toast('Xəta: ' + (error.message || ''), true); return; }
       logAudit('Nailiyyət əlavə edildi', caption);
       fileInp.value = '';
       document.getElementById('new-achieve-caption').value = '';
@@ -5257,32 +5375,36 @@
       const btn = document.getElementById('add-team-btn');
       btn.disabled = true; btn.textContent = 'Əlavə edilir...';
 
-      let photoUrl = null;
-      if (file) {
-        const MAX_UPLOAD_MB = 8;
-        if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
-          toast(`Şəkil çox böyükdür (maks. ${MAX_UPLOAD_MB}MB).`, true);
-          btn.disabled = false; btn.textContent = 'Əlavə et';
-          return;
+      let error = null;
+      try {
+        let photoUrl = null;
+        if (file) {
+          const MAX_UPLOAD_MB = 8;
+          if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+            toast(`Şəkil çox böyükdür (maks. ${MAX_UPLOAD_MB}MB).`, true);
+            return;
+          }
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${fileExt}`;
+          const { error: upErr } = await withTimeout(sb.storage.from('TeamPhotos').upload(fileName, file), 120000);
+          if (upErr) {
+            toast('Xəta: ' + upErr.message, true);
+            return;
+          }
+          const { data: pub } = sb.storage.from('TeamPhotos').getPublicUrl(fileName);
+          photoUrl = pub.publicUrl;
         }
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${fileExt}`;
-        const { error: upErr } = await sb.storage.from('TeamPhotos').upload(fileName, file);
-        if (upErr) {
-          toast('Xəta: ' + upErr.message, true);
-          btn.disabled = false; btn.textContent = 'Əlavə et';
-          return;
-        }
-        const { data: pub } = sb.storage.from('TeamPhotos').getPublicUrl(fileName);
-        photoUrl = pub.publicUrl;
+
+        ({ error } = await withTimeout(sb.from('team_members')
+          .insert({ name, title: title || null, photo_url: photoUrl, sort_order: order, active: true })));
+      } catch (e) {
+        console.error('Komanda üzvü əlavə etmə xətası:', e);
+        error = e;
+      } finally {
+        btn.disabled = false; btn.textContent = 'Əlavə et';
       }
 
-      const { error } = await sb.from('team_members')
-        .insert({ name, title: title || null, photo_url: photoUrl, sort_order: order, active: true });
-
-      btn.disabled = false; btn.textContent = 'Əlavə et';
-
-      if (error) { toast('Xəta: ' + error.message, true); return; }
+      if (error) { toast('Xəta: ' + (error.message || ''), true); return; }
       logAudit('Əməkdaş əlavə edildi', name);
       fileInp.value = '';
       document.getElementById('new-team-name').value = '';
@@ -5653,11 +5775,18 @@
 
       const btn = document.getElementById('add-examresult-btn');
       btn.disabled = true; btn.textContent = '...';
-      const { error } = await sb.from('exam_results')
-        .insert({ student_email: email, exam_name: examName, result_text: resultText, created_by: currentEmail });
-      btn.disabled = false; btn.textContent = 'Əlavə et';
+      let error = null;
+      try {
+        ({ error } = await withTimeout(sb.from('exam_results')
+          .insert({ student_email: email, exam_name: examName, result_text: resultText, created_by: currentEmail })));
+      } catch (e) {
+        console.error('Sınaq nəticəsi əlavə etmə xətası:', e);
+        error = e;
+      } finally {
+        btn.disabled = false; btn.textContent = 'Əlavə et';
+      }
 
-      if (error) { toast('Xəta: ' + error.message, true); return; }
+      if (error) { toast('Xəta: ' + (error.message || ''), true); return; }
       logAudit('Sınaq nəticəsi əlavə edildi', email, examName);
       document.getElementById('new-examresult-search').value = '';
       document.getElementById('new-examresult-name').value = '';
@@ -5911,47 +6040,52 @@
       const btn = document.getElementById('add-question-btn');
       btn.disabled = true; btn.textContent = (file || audioFile) ? 'Yüklənir...' : '...';
 
-      let imageUrl = null;
-      if (file) {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${fileExt}`;
-        const { error: upErr } = await sb.storage.from('QuestionImages').upload(fileName, file);
-        if (upErr) {
-          toast('Xəta (şəkil): ' + upErr.message, true);
-          btn.disabled = false; btn.textContent = 'Sual əlavə et';
-          return;
+      let error = null;
+      try {
+        let imageUrl = null;
+        if (file) {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${fileExt}`;
+          const { error: upErr } = await withTimeout(sb.storage.from('QuestionImages').upload(fileName, file), 120000);
+          if (upErr) {
+            toast('Xəta (şəkil): ' + upErr.message, true);
+            return;
+          }
+          const { data: pub } = sb.storage.from('QuestionImages').getPublicUrl(fileName);
+          imageUrl = pub.publicUrl;
         }
-        const { data: pub } = sb.storage.from('QuestionImages').getPublicUrl(fileName);
-        imageUrl = pub.publicUrl;
+
+        let audioUrl = null;
+        if (audioFile) {
+          const fileExt = audioFile.name.split('.').pop();
+          const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${fileExt}`;
+          const { error: upErr } = await withTimeout(sb.storage.from('QuestionAudio').upload(fileName, audioFile), 120000);
+          if (upErr) {
+            toast('Xəta (səs): ' + upErr.message, true);
+            return;
+          }
+          const { data: pub } = sb.storage.from('QuestionAudio').getPublicUrl(fileName);
+          audioUrl = pub.publicUrl;
+        }
+
+        const scope = questionsPoolScope();
+        ({ error } = await withTimeout(sb.from('trial_exam_questions').insert({
+          [scope.column]: parseInt(scope.id, 10),
+          question_text: questionText,
+          image_url: imageUrl,
+          audio_url: audioUrl,
+          category: category || null,
+          options: opts,
+          correct_index: correctIndex
+        })));
+      } catch (e) {
+        console.error('Sual əlavə etmə xətası:', e);
+        error = e;
+      } finally {
+        btn.disabled = false; btn.textContent = 'Sual əlavə et';
       }
 
-      let audioUrl = null;
-      if (audioFile) {
-        const fileExt = audioFile.name.split('.').pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${fileExt}`;
-        const { error: upErr } = await sb.storage.from('QuestionAudio').upload(fileName, audioFile);
-        if (upErr) {
-          toast('Xəta (səs): ' + upErr.message, true);
-          btn.disabled = false; btn.textContent = 'Sual əlavə et';
-          return;
-        }
-        const { data: pub } = sb.storage.from('QuestionAudio').getPublicUrl(fileName);
-        audioUrl = pub.publicUrl;
-      }
-
-      const scope = questionsPoolScope();
-      const { error } = await sb.from('trial_exam_questions').insert({
-        [scope.column]: parseInt(scope.id, 10),
-        question_text: questionText,
-        image_url: imageUrl,
-        audio_url: audioUrl,
-        category: category || null,
-        options: opts,
-        correct_index: correctIndex
-      });
-      btn.disabled = false; btn.textContent = 'Sual əlavə et';
-
-      if (error) { toast('Xəta: ' + error.message, true); return; }
+      if (error) { toast('Xəta: ' + (error.message || ''), true); return; }
       document.getElementById('new-question-category').value = '';
       document.getElementById('new-question-text').value = '';
       fileInp.value = '';
@@ -6341,11 +6475,19 @@
       }
 
       btn.textContent = 'Yüklənir...';
-      const { error } = await sb.from('trial_exam_questions').insert(toInsert);
-      btn.disabled = false; btn.textContent = 'Yüklə';
+      let error = null;
+      try {
+        // Yüzlərlə sual bir sorğuda gedə bilər — daha uzun gözləmə payı verilir.
+        ({ error } = await withTimeout(sb.from('trial_exam_questions').insert(toInsert), 60000));
+      } catch (e) {
+        console.error('Toplu sual yükləmə xətası:', e);
+        error = e;
+      } finally {
+        btn.disabled = false; btn.textContent = 'Yüklə';
+      }
 
       if (error) {
-        resultEl.textContent = '❌ Xəta: ' + error.message;
+        resultEl.textContent = '❌ Xəta: ' + (error.message || '');
         resultEl.style.color = 'var(--coral)';
         resultEl.style.display = 'block';
         return;
