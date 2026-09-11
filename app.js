@@ -679,6 +679,10 @@
 
         if (session) {
           currentEmail = session.user.email;
+          // Səhifə açılarkən sorğular hələ sessiyasız getmiş ola bilər —
+          // məzmun cədvəlləri yalnız daxil olmuş istifadəçiyə açıq olduğuna
+          // görə sessiya təsdiqlənən kimi onları yenidən oxuyuruq.
+          reloadSharedContent();
           const name = await resolveDisplayName(currentEmail, session.user.user_metadata?.full_name);
           document.getElementById('home-greeting').textContent = 'Salam, ' + name.split(' ')[0];
           document.getElementById('profile-name-display').textContent = name;
@@ -747,6 +751,8 @@
 
         toast('Hesab uğurla yaradıldı!');
         currentEmail = email;
+        // Yeni sessiya ilə məzmun cədvəlləri artıq oxunabiləndir.
+        reloadSharedContent();
         document.getElementById('home-greeting').textContent = 'Salam, ' + name.split(' ')[0];
         document.getElementById('profile-name-display').textContent = name;
         document.getElementById('profile-avatar-initials').textContent = name.charAt(0).toUpperCase();
@@ -838,6 +844,8 @@
         clearLoginAttempts(email);
         toast('Sistemə daxil oldunuz!');
         currentEmail = email;
+        // Məzmun cədvəlləri yalnız daxil olmuş istifadəçiyə açıqdır — indi yenidən oxu.
+        reloadSharedContent();
         const name = await resolveDisplayName(email, data.user?.user_metadata?.full_name);
         document.getElementById('home-greeting').textContent = 'Salam, ' + name.split(' ')[0];
         document.getElementById('profile-name-display').textContent = name;
@@ -1634,14 +1642,28 @@
       });
     }
     renderCountryChips(); renderFieldChips();
+
+    /* Ümumi məzmunu (xidmətlər, komanda, nailiyyətlər, tərəfdaşlar, xəbərlər,
+       sınaq imtahanları, universitet kataloqu) bazadan yenidən oxuyur.
+
+       ƏHƏMİYYƏTLİ: bu cədvəllərin RLS siyasəti yalnız `authenticated` rola
+       oxumağa icazə verir. Səhifə ilk açılanda istifadəçi hələ daxil olmayıb,
+       ona görə sorğular boş qayıdır. Giriş uğurlu olan kimi bu funksiya
+       yenidən çağırılmalıdır — əks halda tələbə daxil olduqdan sonra ekranlar
+       "məlumat yoxdur" göstərir və yalnız səhifəni yeniləyəndə dolurdu. */
+    function reloadSharedContent() {
+      loadUniversitiesFromDB();
+      loadAchievements();
+      loadServices();
+      loadTeamMembers();
+      loadPartnerUniversities();
+      loadNews();
+      loadTrialExams();
+    }
+    window.__reloadSharedContent = reloadSharedContent;
+
     // Kataloqu bazadan yenilə (varsa) — səhifə açılışını bloklamadan
-    loadUniversitiesFromDB();
-    loadAchievements();
-    loadServices();
-    loadTeamMembers();
-    loadPartnerUniversities();
-    loadNews();
-    loadTrialExams();
+    reloadSharedContent();
 
     // Valideyn linki ilə açılıbsa (?parent=TOKEN), splash/login əvəzinə
     // birbaşa yalnız-oxu görünüşü göstər.
@@ -3887,6 +3909,10 @@
 
       const t = translations[lang];
       if (!t) return;
+
+      // Ekran oxuyucuları və brauzerin tərcümə/hecalama qaydaları üçün
+      // sənədin dili də dəyişməlidir.
+      document.documentElement.setAttribute('lang', lang);
 
       try {
         // Mətn məzmunu — təhlükəsizlik üçün textContent (innerHTML deyil)
