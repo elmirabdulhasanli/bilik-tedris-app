@@ -12,6 +12,41 @@
   <link rel="icon" href="logo.png">
   <link rel="apple-touch-icon" href="logo.png">
 
+  <!-- ══════════════ SAYT REJİMİ ══════════════
+       Eyni fayllar iki domendən yayımlanır:
+         • kurs domeni          → 'full'   (hər şey)
+         • xaricdə təhsil domeni → 'abroad' (yalnız müraciət axını)
+       Bu kod <head>-də işləyir ki, xaricdə təhsil saytında kurs
+       kartları bir an belə ekranda görünməsin (app.js body-nin
+       sonunda yüklənir, ona qədər brauzer artıq bir kadr çəkə bilir).  -->
+  <script>
+    (function () {
+      // Yeni domen alındıqda bura əlavə edin — başqa heç nəyi dəyişmək lazım deyil.
+      var ABROAD_HOSTS = ['bilik-xaricde.netlify.app'];
+
+      // ?mode= yalnız yerli testdə işləyir. Canlı saytda buna icazə versək,
+      // kurs saytından qeydiyyatdan keçən adam səhvən "xaric" kimi yazılardı.
+      var isLocal = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+      var forced = isLocal ? new URLSearchParams(location.search).get('mode') : null;
+      // Netlify-in "deploy-preview-7--HOST" və budaq URL-ləri də tutulsun.
+      // Tanınmayan domen həmişə 'full' olur: siyahı səhv olsa, xaricdə təhsil
+      // saytı artıq məzmun göstərər (kosmetik), kurs saytı isə heç nə itirməz.
+      var isAbroadHost = ABROAD_HOSTS.some(function (h) {
+        return location.hostname === h || location.hostname.endsWith('--' + h);
+      });
+      var mode = forced || (isAbroadHost ? 'abroad' : 'full');
+
+      window.APP_MODE = mode;
+      document.documentElement.dataset.appMode = mode;   // kök elementdə ayrı ad: data-mode elementlərlə toqquşmasın
+
+      if (mode === 'abroad') {
+        document.title = 'Bilik — Xaricdə Təhsil';
+        var mf = document.querySelector('link[rel="manifest"]');
+        if (mf) mf.href = 'manifest-xaric.json';
+      }
+    })();
+  </script>
+
   <!-- Telefona "əlavə et" edildikdə tam ekran (brauzer çərçivəsi olmadan) açılsın -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -276,7 +311,7 @@
     </div>
 
     <!-- ══════════════ SINAQ HƏLLİ (tələbə) ══════════════ -->
-    <div class="screen" id="trialexam-take">
+    <div class="screen" id="trialexam-take" data-mode="full">
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
         <button class="link-back" id="trialexam-take-exit-btn" data-i18n="trialexams_exit">&larr; Çıx</button>
         <p style="font-size:12px; color:var(--ink-soft); margin:0;" id="trialexam-take-progress">1/1</p>
@@ -334,7 +369,7 @@
           <p class="eyebrow" data-i18n="welcome">Xoş gördük</p>
           <h1 class="title" id="home-greeting" data-i18n="greeting">Salam, Tələbə</h1>
         </div>
-        <button id="notif-bell-btn" aria-label="Bildirişlər"
+        <button id="notif-bell-btn" data-mode="full" aria-label="Bildirişlər"
           style="position:relative; flex-shrink:0; background:#fff; border:1px solid var(--line); border-radius:12px; width:40px; height:40px; font-size:17px; cursor:pointer; margin-top:2px;">
           🔔
           <span id="notif-badge"
@@ -353,8 +388,8 @@
       </div>
 
       <!-- Xidmətlər paneli -->
-      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;">
-        <div class="card" id="home-card-partner-unis"
+      <div id="home-cards-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;">
+        <div class="card" id="home-card-partner-unis" data-mode="full"
           style="text-align: center; padding: 14px 8px; cursor: pointer; transition: transform .15s, box-shadow .15s;"
           onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(15,23,42,0.1)'"
           onmouseout="this.style.transform='';this.style.boxShadow=''">
@@ -364,7 +399,7 @@
           <p style="font-size: 11.5px; font-weight: 600; margin: 0 0 2px; color: var(--ink);" data-i18n="home_card_partners_title">Əməkdaşlar</p>
           <p style="font-size: 10px; color: var(--ink-soft); margin: 0;" data-i18n="home_card_partners_sub">Universitetlər</p>
         </div>
-        <div class="card" id="home-card-services"
+        <div class="card" id="home-card-services" data-mode="full"
           style="text-align: center; padding: 14px 8px; cursor: pointer; transition: transform .15s, box-shadow .15s;"
           onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(15,23,42,0.1)'"
           onmouseout="this.style.transform='';this.style.boxShadow=''">
@@ -384,7 +419,7 @@
           <p style="font-size: 11.5px; font-weight: 600; margin: 0 0 2px; color: var(--ink);" data-i18n="home_card_achieve_title">Nailiyyətlər</p>
           <p style="font-size: 10px; color: var(--ink-soft); margin: 0;" data-i18n="home_card_achieve_sub">Uğurlarımız</p>
         </div>
-        <div class="card" id="home-card-team"
+        <div class="card" id="home-card-team" data-mode="full"
           style="text-align: center; padding: 14px 8px; cursor: pointer; transition: transform .15s, box-shadow .15s;"
           onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(15,23,42,0.1)'"
           onmouseout="this.style.transform='';this.style.boxShadow=''">
@@ -394,7 +429,7 @@
           <p style="font-size: 11.5px; font-weight: 600; margin: 0 0 2px; color: var(--ink);" data-i18n="home_card_team_title">Komanda</p>
           <p style="font-size: 10px; color: var(--ink-soft); margin: 0;" data-i18n="home_card_team_sub">Müəllimlər</p>
         </div>
-        <div class="card" id="home-card-news"
+        <div class="card" id="home-card-news" data-mode="full"
           style="text-align: center; padding: 14px 8px; cursor: pointer; transition: transform .15s, box-shadow .15s;"
           onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(15,23,42,0.1)'"
           onmouseout="this.style.transform='';this.style.boxShadow=''">
@@ -404,7 +439,7 @@
           <p style="font-size: 11.5px; font-weight: 600; margin: 0 0 2px; color: var(--ink);" data-i18n="home_card_news_title">Xəbərlər</p>
           <p style="font-size: 10px; color: var(--ink-soft); margin: 0;" data-i18n="home_card_news_sub">Elanlar</p>
         </div>
-        <div class="card" id="home-card-trialexams"
+        <div class="card" id="home-card-trialexams" data-mode="full"
           style="text-align: center; padding: 14px 8px; cursor: pointer; transition: transform .15s, box-shadow .15s;"
           onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(15,23,42,0.1)'"
           onmouseout="this.style.transform='';this.style.boxShadow=''">
@@ -435,7 +470,7 @@
       </div>
 
       <!-- Haqqımızda -->
-      <div id="about-section" style="margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--line);">
+      <div id="about-section" data-mode="full" style="margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--line);">
         <p class="section-label" data-i18n="about_us">Haqqımızda</p>
 
         <!-- Logo və başlıq -->
@@ -619,7 +654,10 @@
         <div class="uni-tags"><span class="tag">4.9 reytinq</span><span class="tag">120+ məsləhət</span></div>
         <button class="btn book-toggle" data-i18n="book_meeting">Görüş planlaşdır</button>
         <div class="book-panel" style="display:none;">
-          <div class="field" style="margin-top:12px;">
+          <!-- Xaricdə təhsil saytında bu sahə tamamilə silinir: istifadəçi şəhərdən
+               kənardadır, mərkəzə gələ bilməz. Sahə yoxdursa booking handleri
+               görüş növünü avtomatik "Online" götürür (bax app.js: book-confirm). -->
+          <div class="field" data-mode="full" style="margin-top:12px;">
             <label data-i18n="meeting_type">Görüş növü</label>
             <select class="book-type">
               <option value="Online" data-i18n-opt="type_online">Online</option>
@@ -644,7 +682,10 @@
         <div class="uni-tags"><span class="tag">4.8 reytinq</span><span class="tag">80+ məsləhət</span></div>
         <button class="btn ghost book-toggle" data-i18n="book_meeting">Görüş planlaşdır</button>
         <div class="book-panel" style="display:none;">
-          <div class="field" style="margin-top:12px;">
+          <!-- Xaricdə təhsil saytında bu sahə tamamilə silinir: istifadəçi şəhərdən
+               kənardadır, mərkəzə gələ bilməz. Sahə yoxdursa booking handleri
+               görüş növünü avtomatik "Online" götürür (bax app.js: book-confirm). -->
+          <div class="field" data-mode="full" style="margin-top:12px;">
             <label data-i18n="meeting_type">Görüş növü</label>
             <select class="book-type">
               <option value="Online" data-i18n-opt="type_online">Online</option>
@@ -669,7 +710,10 @@
         <div class="uni-tags"><span class="tag">Rəsmi nümayəndəlik</span></div>
         <button class="btn ghost book-toggle" data-i18n="book_meeting">Görüş planlaşdır</button>
         <div class="book-panel" style="display:none;">
-          <div class="field" style="margin-top:12px;">
+          <!-- Xaricdə təhsil saytında bu sahə tamamilə silinir: istifadəçi şəhərdən
+               kənardadır, mərkəzə gələ bilməz. Sahə yoxdursa booking handleri
+               görüş növünü avtomatik "Online" götürür (bax app.js: book-confirm). -->
+          <div class="field" data-mode="full" style="margin-top:12px;">
             <label data-i18n="meeting_type">Görüş növü</label>
             <select class="book-type">
               <option value="Online" data-i18n-opt="type_online">Online</option>
@@ -834,6 +878,15 @@
           <span class="admin-badge" id="admin-role-badge">Admin</span>
         </div>
         <button class="admin-logout-btn" id="admin-logout-btn">Çıx →</button>
+      </div>
+
+      <!-- Mənbə filtri — tələbə hansı saytdan gəlib.
+           Bütün siyahılara, dashboard göstəricilərinə, analitikaya və
+           CSV ixraclarına eyni anda tətbiq olunur. -->
+      <div class="admin-source-filter" id="admin-source-filter">
+        <button class="asf-btn active" data-source="all" data-i18n="admin_src_all">Hamısı</button>
+        <button class="asf-btn" data-source="kurs" data-i18n="admin_src_kurs">Kurs</button>
+        <button class="asf-btn" data-source="xaric" data-i18n="admin_src_abroad">Xaricdə təhsil</button>
       </div>
 
 
@@ -1396,7 +1449,7 @@
     </div>
 
     <!-- ══════════════ MODAL: Bildirişlər ══════════════ -->
-    <div class="admin-modal-overlay" id="notif-modal">
+    <div class="admin-modal-overlay" id="notif-modal" data-mode="full">
       <div class="admin-modal-box">
         <div class="admin-modal-handle"></div>
         <p class="admin-modal-title" data-i18n="notifications">Bildirişlər</p>
@@ -1407,7 +1460,7 @@
     </div>
 
     <!-- ══════════════ MODAL: Əməkdaş universitetlər ══════════════ -->
-    <div class="admin-modal-overlay" id="partner-unis-modal">
+    <div class="admin-modal-overlay" id="partner-unis-modal" data-mode="full">
       <div class="admin-modal-box">
         <div class="admin-modal-handle"></div>
         <p class="admin-modal-title" data-i18n="partner_unis_title">Əməkdaş universitetlər</p>
@@ -1419,7 +1472,7 @@
     </div>
 
     <!-- ══════════════ MODAL: Xidmətlərimiz ══════════════ -->
-    <div class="admin-modal-overlay" id="services-modal">
+    <div class="admin-modal-overlay" id="services-modal" data-mode="full">
       <div class="admin-modal-box">
         <div class="admin-modal-handle"></div>
         <p class="admin-modal-title" data-i18n="abt_services_title">Təklif etdiyimiz xidmətlər</p>
@@ -1443,7 +1496,7 @@
     </div>
 
     <!-- ══════════════ MODAL: Əməkdaşlarımız ══════════════ -->
-    <div class="admin-modal-overlay" id="team-modal">
+    <div class="admin-modal-overlay" id="team-modal" data-mode="full">
       <div class="admin-modal-box">
         <div class="admin-modal-handle"></div>
         <p class="admin-modal-title" data-i18n="team_title">Əməkdaşlarımız</p>
@@ -1455,7 +1508,7 @@
     </div>
 
     <!-- ══════════════ MODAL: Elanlar/Xəbərlər ══════════════ -->
-    <div class="admin-modal-overlay" id="news-modal">
+    <div class="admin-modal-overlay" id="news-modal" data-mode="full">
       <div class="admin-modal-box">
         <div class="admin-modal-handle"></div>
         <p class="admin-modal-title" data-i18n="news_title">Elanlar / Xəbərlər</p>
@@ -1467,7 +1520,7 @@
     </div>
 
     <!-- ══════════════ MODAL: Sınaq İmtahanları ══════════════ -->
-    <div class="admin-modal-overlay" id="trialexams-modal">
+    <div class="admin-modal-overlay" id="trialexams-modal" data-mode="full">
       <div class="admin-modal-box">
         <div class="admin-modal-handle"></div>
         <p class="admin-modal-title" data-i18n="trialexams_title">Ödənişli Sınaq İmtahanları</p>

@@ -1,5 +1,8 @@
-const CACHE_NAME = 'btm-shell-v3';
-const SHELL_FILES = ['./', './index.html', './styles.css', './app.js', './logo.png', './logo.jpg', './manifest.json'];
+// Qabıq fayllarının siyahısı dəyişəndə bu ad da artırılmalıdır — `activate`
+// yalnız adı fərqli olan keşləri silir, ona görə ad eyni qalsa köhnə
+// istifadəçilər yeni faylı heç vaxt keşə götürmür.
+const CACHE_NAME = 'btm-shell-v4';
+const SHELL_FILES = ['./', './index.html', './styles.css', './app.js', './logo.png', './logo.jpg', './manifest.json', './manifest-xaric.json'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

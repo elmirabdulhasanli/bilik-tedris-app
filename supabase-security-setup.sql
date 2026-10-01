@@ -123,6 +123,65 @@ create trigger trg_prevent_role_escalation
 alter table public.profiles add column if not exists father_name text;
 
 
+-- Tələbə hansı saytdan gəlib:
+--   'kurs'  — əsas sayt (kurs tələbələri)
+--   'xaric' — xaricdə təhsil saytı (şəhər/ölkə xaricindən müraciət edənlər)
+-- Hər iki sayt eyni bazadan istifadə edir; admin paneldəki "Hamısı / Kurs /
+-- Xaricdə təhsil" filtri məhz bu sütuna baxır. Mövcud bütün sətirlər 'kurs'
+-- olur — bu günə qədər yeganə sayt o idi.
+alter table public.profiles
+  add column if not exists source text not null default 'kurs';
+
+-- Sütun əvvəllər başqa yolla (nullable) yaradılmış ola bilər — fayl dəfələrlə
+-- işə salına bildiyi üçün hər halda normallaşdırırıq. Hər sətir idempotentdir.
+update public.profiles set source = 'kurs' where source is null;
+alter table public.profiles alter column source set default 'kurs';
+alter table public.profiles alter column source set not null;
+
+-- Yalnız iki dəyər qəbul olunur. `add constraint` üçün `if not exists` variantı
+-- yoxdur, ona görə faylın qaydasına uyğun əvvəlcə düşürürük.
+alter table public.profiles drop constraint if exists profiles_source_check;
+alter table public.profiles
+  add constraint profiles_source_check check (source in ('kurs', 'xaric'));
+
+-- Mənbə sətir yaradılanda bir dəfə yazılır və bundan sonra DƏYİŞMİR.
+-- Səbəb: profil UPDATE-i müştəri tərəfdə upsert ilə edilir və bütün sahələri
+-- yenidən yazır. Kurs tələbəsi xaricdə təhsil saytına girib profilini
+-- redaktə etsə, mənbəyi "xaric"ə sürüşər və admin paneldəki filtr ilə
+-- analitika yanlış olardı. Ona görə qoruma müştəridə deyil, bazadadır.
+--
+-- DİQQƏT — prevent_role_escalation()-dan fərqli olaraq burada `raise exception`
+-- YOXDUR. `role` müştəri tərəfdən heç vaxt göndərilmir, ona görə orada xəta
+-- atmaq təhlükəsizdir. `source` isə hər profil saxlamasında göndərilir —
+-- xəta atsaq, tələbə öz profilini ümumiyyətlə saxlaya bilməzdi.
+-- Ona görə səssizcə köhnə dəyəri geri qoyuruq.
+-- Admin dəyişə bilər: səhv damğalanmış bir sətri düzəltmək mümkün olsun.
+create or replace function public.prevent_source_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if TG_OP = 'INSERT' then
+    if new.source is null or new.source not in ('kurs', 'xaric') then
+      new.source := 'kurs';
+    end if;
+  elsif TG_OP = 'UPDATE' then
+    if new.source is distinct from old.source and not public.is_admin() then
+      new.source := old.source;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_prevent_source_change on public.profiles;
+create trigger trg_prevent_source_change
+  before insert or update on public.profiles
+  for each row execute function public.prevent_source_change();
+
+
 -- ─── 3. CONSULTATIONS CƏDVƏLİ ────────────────────────────────────────────
 
 alter table public.consultations enable row level security;

@@ -26,13 +26,42 @@
     const SUPABASE_URL = 'https://qsenepccyrcudhlqntab.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_To8rpdSYIudXX62AO16rWg_nTO1i4DL';
 
-    // Şifrə bərpası kimi email-lə göndərilən linklər üçün sabit ünvan —
-    // window.location.href-dən asılı deyil, harada test edilsə də düzgün yerə yönləndirir.
-    const PRODUCTION_URL = 'https://biliktedrismerkezi.netlify.app/';
-
     const sb = (typeof window.supabase !== 'undefined' && SUPABASE_URL !== 'YOUR_SUPABASE_URL')
       ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
       : null;
+
+    /* ═══════════════════════════════════════════════════════════
+       SAYT REJİMİ
+       ──────────────────────────────────────────────────────────
+       Eyni fayllar iki domendən yayımlanır:
+         'full'   — kurs saytı: hər şey (sınaq imtahanları daxil)
+         'abroad' — xaricdə təhsil saytı: yalnız müraciət axını
+       Rejim index.html-in <head>-ində domenə görə təyin olunur
+       (orada təyin edilir ki, kurs kartları bir an belə görünməsin).
+    ═══════════════════════════════════════════════════════════ */
+    const APP_MODE = window.APP_MODE || 'full';
+    const IS_ABROAD = APP_MODE === 'abroad';
+
+    // Şifrə bərpası kimi email-lə göndərilən linklər üçün sabit ünvan —
+    // window.location.href-dən asılı deyil, harada test edilsə də düzgün yerə yönləndirir.
+    // Hər saytın öz ünvanı var: əks halda xaricdə təhsil saytında şifrəsini
+    // unudan müraciətçi kurs saytına yönələrdi.
+    const SITE_URLS = {
+      full: 'https://biliktedrismerkezi.netlify.app/',
+      abroad: 'https://bilik-xaricde.netlify.app/'
+    };
+    const PRODUCTION_URL = SITE_URLS[APP_MODE] || SITE_URLS.full;
+
+    /* Rejimə aid olmayan elementləri DOM-dan tam çıxarır.
+       Yalnız gizlətmək kifayət etmir — gizli <option> və düymələr klaviatura
+       ilə hələ də seçilə bilir və ekran oxuyucuları onları oxuyur.
+       Bütün hadisə bağlamaları `?.` ilə yazıldığı üçün silinmiş element
+       heç bir yerdə xəta vermir. */
+    function applyAppMode() {
+      if (!IS_ABROAD) return;
+      document.querySelectorAll('[data-mode="full"]').forEach(el => el.remove());
+    }
+    applyAppMode();
 
     /* ── Təhlükəsizlik: HTML escape ───────────────────────────
        İstifadəçidən/bazadan gələn HƏR mətn innerHTML-ə yazılmazdan əvvəl
@@ -52,7 +81,17 @@
     async function dbSaveProfile(data) {
       if (!sb) return { data: null, error: null };
       const result = await sb.from('profiles')
-        .upsert({ ...data, updated_at: new Date().toISOString() }, { onConflict: 'email' })
+        .upsert({
+          /* Mənbə HƏR yazıda göndərilir, çünki profil sətrini yaradan bir neçə
+             yol var: onboarding formu, qeydiyyat və universitet seçimi
+             (tələbə formu doldurmadan da universitet seçə bilir). Hansı yol
+             sətri birinci yaradırsa, damğa düzgün düşməlidir.
+             Mövcud sətirdə bazadakı trg_prevent_source_change triggeri köhnə
+             dəyəri saxlayır — yəni bu sətir heç vaxt mənbəni sürüşdürmür. */
+          source: IS_ABROAD ? 'xaric' : 'kurs',
+          ...data,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'email' })
         .select().single();
       // Auth-dakı user_metadata.full_name da sinxron qalsın — qeydiyyatda təyin
       // olunan ilkin ad orada donub qalırdı, profil redaktəsi onu yeniləmirdi.
@@ -751,6 +790,18 @@
 
         toast('Hesab uğurla yaradıldı!');
         currentEmail = email;
+
+        /* Profil sətrini elə indi yaradırıq ki, istifadəçi formu doldurmasa belə
+           admin paneldə görünsün və hansı saytdan gəldiyi qeydə alınsın.
+           Sətir artıq varsa insert unikal-açar xətası verir — bu normaldır,
+           mənbə onsuz da əvvəlki qeydiyyatdan saxlanılıb. */
+        try {
+          await withTimeout(sb.from('profiles')
+            .insert({ email, name, source: IS_ABROAD ? 'xaric' : 'kurs' }));
+        } catch (e) {
+          console.warn('İlkin profil sətri yaradılmadı:', e);
+        }
+
         // Yeni sessiya ilə məzmun cədvəlləri artıq oxunabiləndir.
         reloadSharedContent();
         document.getElementById('home-greeting').textContent = 'Salam, ' + name.split(' ')[0];
@@ -1654,6 +1705,8 @@
     function reloadSharedContent() {
       loadUniversitiesFromDB();
       loadAchievements();
+      // Xaricdə təhsil saytında bu bölmələr yoxdur — sorğu atmağın mənası yoxdur.
+      if (IS_ABROAD) return;
       loadServices();
       loadTeamMembers();
       loadPartnerUniversities();
@@ -2767,6 +2820,7 @@
           target_universities: selUnis,
           fields: selFields,
           level, exams, score, budget
+          // `source` dbSaveProfile-ın özündə əlavə olunur — bütün yollar üçün.
         }));
 
         if (error) { toast('⚠️ Xəta: ' + error.message, true); }
@@ -2824,6 +2878,10 @@
     const translations = {
       az: {
         page_title: 'BTM - Xaricdə Təhsil',
+        admin_src_all: 'Hamısı',
+        admin_src_kurs: 'Kurs',
+        admin_src_abroad: 'Xaricdə təhsil',
+        student_badge_abroad: 'Xaric',
         years_with_you: '20 ildir sizinlə',
         // Splash
         splash_tag: 'Xaricdə təhsil marşrutun — universitet seçimindən viza sənədlərinə qədər bir yerdə.',
@@ -3097,6 +3155,10 @@
 
       en: {
         page_title: 'BTM - Study Abroad',
+        admin_src_all: 'All',
+        admin_src_kurs: 'Courses',
+        admin_src_abroad: 'Study abroad',
+        student_badge_abroad: 'Abroad',
         years_with_you: '20 years with you',
         splash_tag: 'Your study abroad route — from university selection to visa documents, all in one place.',
         splash_start: 'Start',
@@ -3356,6 +3418,10 @@
 
       ru: {
         page_title: 'BTM - Обучение за рубежом',
+        admin_src_all: 'Все',
+        admin_src_kurs: 'Курсы',
+        admin_src_abroad: 'Учёба за рубежом',
+        student_badge_abroad: 'Зарубеж',
         years_with_you: '20 лет с вами',
         splash_tag: 'Ваш маршрут обучения за рубежом — от выбора университета до визовых документов, всё в одном месте.',
         splash_start: 'Начать',
@@ -3615,6 +3681,10 @@
 
       tr: {
         page_title: 'BTM - Yurt Dışı Eğitim',
+        admin_src_all: 'Tümü',
+        admin_src_kurs: 'Kurs',
+        admin_src_abroad: 'Yurt dışı eğitim',
+        student_badge_abroad: 'Yurt dışı',
         years_with_you: '20 yıldır sizinle',
         splash_tag: 'Yurt dışı eğitim rotanız — üniversite seçiminden vize belgelerine kadar tek bir yerde.',
         splash_start: 'Başla',
@@ -3897,6 +3967,42 @@
       }
     }
 
+    /* ── Xaricdə təhsil saytına aid mətn fərqləri ──────────────
+       Açarlar dörd dil blokundakı ilə eynidir; burada yalnız həmin
+       saytda fərqli oxunan dəyərlər saxlanılır. */
+    const ABROAD_I18N = {
+      page_title: {
+        az: 'Bilik — Xaricdə Təhsil',
+        en: 'Bilik — Study Abroad',
+        ru: 'Bilik — Учёба за рубежом',
+        tr: 'Bilik — Yurt Dışında Eğitim'
+      },
+      splash_tag: {
+        az: 'Xaricdə təhsil müraciətin — universitet seçimindən sənədlərin təhvilinə qədər onlayn.',
+        en: 'Your study-abroad application — from choosing a university to submitting documents, all online.',
+        ru: 'Ваша заявка на учёбу за рубежом — от выбора университета до подачи документов, онлайн.',
+        tr: 'Yurt dışı eğitim başvurun — üniversite seçiminden belge tesliminе kadar çevrimiçi.'
+      },
+      home_card_achieve_title: { az: 'Qəbullar', en: 'Admissions', ru: 'Поступления', tr: 'Kabuller' },
+      home_card_achieve_sub: { az: 'Qəbullarımız', en: 'Our admissions', ru: 'Наши поступления', tr: 'Kabullerimiz' },
+      achievements_title: { az: 'Qəbullarımız', en: 'Our admissions', ru: 'Наши поступления', tr: 'Kabullerimiz' },
+      achievements_empty: {
+        az: 'Hələ heç bir qəbul əlavə olunmayıb.',
+        en: 'No admissions have been added yet.',
+        ru: 'Поступления ещё не добавлены.',
+        tr: 'Henüz kabul eklenmedi.'
+      }
+    };
+
+    function abroadOverridesFor(lang) {
+      const out = {};
+      Object.keys(ABROAD_I18N).forEach(key => {
+        const val = ABROAD_I18N[key][lang];
+        if (val) out[key] = val;
+      });
+      return out;
+    }
+
     function applyLanguage(lang) {
       if (!lang) return;
       currentLang = lang;
@@ -3907,8 +4013,16 @@
         console.warn('localStorage write error:', e);
       }
 
-      const t = translations[lang];
-      if (!t) return;
+      const base = translations[lang];
+      if (!base) return;
+
+      /* Xaricdə təhsil saytında bir neçə başlıq fərqli oxunur ("Nailiyyətlər"
+         əvəzinə "Qəbullarımız" və s.). Bu fərqləri dörd dil blokunun içinə
+         yaymaq əvəzinə burada üst-üstə qoyuruq — beləcə blokların açar
+         paritetini pozmuruq və fərqlər bir yerdə görünür. */
+      const t = IS_ABROAD
+        ? Object.assign({}, base, abroadOverridesFor(lang))
+        : base;
 
       // Ekran oxuyucuları və brauzerin tərcümə/hecalama qaydaları üçün
       // sənədin dili də dəyişməlidir.
@@ -3991,8 +4105,11 @@
       console.error('Error attaching lang events:', e);
     }
 
-    // Apply saved language on load
-    if (currentLang && currentLang !== 'az') {
+    /* Yadda saxlanılmış dili tətbiq et.
+       'az' üçün normalda çağırmağa ehtiyac yoxdur — HTML-dəki sabit mətnlər
+       onsuz da Azərbaycancadır. Xaricdə təhsil saytında isə mütləq çağırılmalıdır:
+       "Nailiyyətlər" → "Qəbullar" kimi fərqlər yalnız applyLanguage-də tətbiq olunur. */
+    if (currentLang && (currentLang !== 'az' || IS_ABROAD)) {
       applyLanguage(currentLang);
     }
 
@@ -4018,6 +4135,21 @@
     let staffToDelete = null;    // Silinəcək işçinin emaili
     let lastAppointmentsData = []; // CSV export üçün son yüklənmiş görüşlər
     let lastDocumentsData = [];    // CSV export üçün son yüklənmiş sənədlər
+
+    /* ── Mənbə filtri ─────────────────────────────────────────
+       Tələbələr iki saytdan gəlir: 'kurs' (əsas sayt) və 'xaric'
+       (xaricdə təhsil saytı). Filtr bütün admin siyahılarına, dashboard
+       göstəricilərinə, analitikaya və CSV ixraclarına eyni anda tətbiq olunur.
+       'all' standart dəyərdir — yəni filtr əlavə edilməzdən əvvəlki davranış. */
+    let adminSourceFilter = 'all';   // 'all' | 'kurs' | 'xaric'
+    try {
+      adminSourceFilter = window.localStorage.getItem('btm_admin_source') || 'all';
+    } catch (e) { /* localStorage bağlıdırsa standart dəyərlə davam */ }
+
+    // profiles-da source boş ola bilər (filtr əlavə olunmazdan əvvəlki sətirlər) — 'kurs' sayılır.
+    function sourceOf(row) {
+      return (row && row.source) || 'kurs';
+    }
 
     // ── CSV İxrac ───────────────────────────────────────────────
     function downloadCSV(filename, headers, rows) {
@@ -4201,6 +4333,10 @@
     function subscribeAdminRealtime() {
       if (!sb || adminRealtimeChannel) return;
       const refreshActiveTab = () => {
+        /* Bazada dəyişiklik oldu — email→mənbə xəritəsi köhnəlmiş ola bilər
+           (məs. başqa cihazdan yeni tələbə qeydiyyatdan keçdi). Cache-i
+           sıfırlamasaq, mənbə filtri həmin tələbəni görməz. */
+        profilesNameCache = null;
         if (currentAdminTab === 'dashboard') loadAdminDashboard();
         else if (currentAdminTab === 'students') loadStudents();
         else if (currentAdminTab === 'appointments') loadAppointments(document.getElementById('appt-filter')?.value || 'all');
@@ -4220,8 +4356,14 @@
       if (!sb) { renderDashboardOffline(); return; }
 
       // Bütün profilləri bir sorğuda çək — role sütunu olmasa belə işləyir
-      const { data: allProfiles, error: profErr } = await sb.from('profiles')
-        .select('name, email, created_at, role');
+      const { data: allProfilesRaw, error: profErr } = await sb.from('profiles')
+        .select('name, email, created_at, role, source');
+
+      // Seçilmiş mənbəyə görə süz — bütün göstəricilər və "son qeydiyyatlar"
+      // eyni dəstdən hesablanmalıdır, yoxsa rəqəmlər bir-birini tutmaz.
+      const allProfiles = (allProfilesRaw || []).filter(p =>
+        adminSourceFilter === 'all' || sourceOf(p) === adminSourceFilter
+      );
 
       let totalStudents = 0, newStudents = 0;
       const weekAgo = new Date();
@@ -4238,14 +4380,25 @@
         ).length;
       }
 
-      // Konsultasiya sayı
-      const { count: apptCount } = await sb.from('consultations')
-        .select('*', { count: 'exact', head: true });
+      /* Konsultasiya və sənəd sayğacları: filtr yoxdursa sürətli `count` sorğusu
+         olduğu kimi qalır; filtr varsa e-poçt siyahısı ilə məhdudlaşdırılır. */
+      const srcEmails = await emailsForCurrentSource();
 
-      // Sənəd sayı
-      const { count: docsCount } = await sb.from('document_status')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'done');
+      let apptCount = 0;
+      {
+        let q = sb.from('consultations').select('*', { count: 'exact', head: true });
+        if (srcEmails) q = srcEmails.length ? q.in('profile_email', srcEmails) : null;
+        if (q) ({ count: apptCount } = await q);
+      }
+
+      let docsCount = 0;
+      {
+        let q = sb.from('document_status')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'done');
+        if (srcEmails) q = srcEmails.length ? q.in('profile_email', srcEmails) : null;
+        if (q) ({ count: docsCount } = await q);
+      }
 
       document.getElementById('dash-total-students').textContent = totalStudents;
       document.getElementById('dash-new-students').textContent = newStudents;
@@ -4314,10 +4467,13 @@
         return;
       }
 
-      // Bütün data gəldi — JS-də admin/staff-i filtr et
+      // Bütün data gəldi — JS-də admin/staff-i və seçilmiş mənbəyi filtr et.
+      // Axtarış, tələbə sayğacı və CSV ixracı da bu cache-dən oxuduğu üçün
+      // mənbə filtri avtomatik olaraq onlara da tətbiq olunur.
       allStudentsCache = (data || []).filter(s =>
         !ADMIN_EMAILS.includes((s.email || '').toLowerCase()) &&
-        s.role !== 'admin' && s.role !== 'staff'
+        s.role !== 'admin' && s.role !== 'staff' &&
+        (adminSourceFilter === 'all' || sourceOf(s) === adminSourceFilter)
       );
 
       // Tələbə sayını başlıqda göstər
@@ -4325,6 +4481,13 @@
       if (titleEl) titleEl.textContent = `Bütün tələbələr (${allStudentsCache.length})`;
 
       renderStudentList(allStudentsCache);
+    }
+
+    /* "Hamısı" rejimində tələbənin hansı saytdan gəldiyi görünsün.
+       Kurs tələbələrinə nişan vurulmur — onlar əksəriyyətdir, nişan səs-küy yaradardı. */
+    function sourceBadgeHtml(s) {
+      if (sourceOf(s) !== 'xaric') return '';
+      return ` <span class="source-badge">🌍 ${escapeHtml(t('student_badge_abroad', 'Xaric'))}</span>`;
     }
 
     function renderStudentList(students) {
@@ -4348,7 +4511,7 @@
         row.className = 'admin-card-row';
         row.innerHTML = `
           <div class="admin-card-row-info" style="cursor:pointer;" data-email="${escapeHtml(s.email)}">
-            <p class="admin-row-name">${escapeHtml(s.name) || 'Ad yoxdur'}</p>
+            <p class="admin-row-name">${escapeHtml(s.name) || 'Ad yoxdur'}${sourceBadgeHtml(s)}</p>
             <p class="admin-row-sub">${escapeHtml(s.email) || '—'} · ${escapeHtml(s.target_countries ? (Array.isArray(s.target_countries) ? s.target_countries[0] : s.target_countries) : '') || '—'}</p>
           </div>
           <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
@@ -4396,6 +4559,7 @@
         ['Büdcə', student.budget || '—'],
         ['Qeydiyyat', student.created_at ? new Date(student.created_at).toLocaleDateString('az-AZ') : '—'],
         ['Status', student.student_status || 'active'],
+        ['Mənbə', sourceOf(student) === 'xaric' ? 'Xaricdə təhsil saytı' : 'Kurs saytı'],
       ];
 
       document.getElementById('modal-student-body').innerHTML = rows
@@ -4422,7 +4586,11 @@
           btn.disabled = false; btn.textContent = '🔗 Valideyn linki yarat';
         }
         if (error || !data) { toast('Xəta: ' + ((error && error.message) || ''), true); return; }
-        const link = PRODUCTION_URL.replace(/\/$/, '') + '/?parent=' + data.token;
+        // Link tələbənin öz saytına yönəlməlidir — adminin hansı domendən
+        // panelə girdiyinə görə deyil. Əks halda xaricdə təhsil müraciətçisinin
+        // valideyni kurs saytına düşərdi.
+        const parentBase = (student.source === 'xaric' ? SITE_URLS.abroad : SITE_URLS.full).replace(/\/$/, '');
+        const link = parentBase + '/?parent=' + data.token;
         logAudit('Valideyn linki yaradıldı', student.email);
         try { await navigator.clipboard.writeText(link); toast('✓ Link kopyalandı'); } catch (e) { /* clipboard əlçatmazdırsa səssizcə keç */ }
         window.prompt('Valideynə göndəriləcək link (kopyalanıb, lazım olsa buradan da götürün):', link);
@@ -4476,6 +4644,17 @@
       if (filterAdvisor !== 'all') query = query.ilike('advisor_name', filterAdvisor + '%');
       if (dateFrom) query = query.gte('date', dateFrom);
       if (dateTo) query = query.lte('date', dateTo);
+
+      // Mənbə filtri — consultations-da source sütunu yoxdur, e-poçt siyahısı ilə süzülür
+      const srcEmails = await emailsForCurrentSource();
+      if (srcEmails) {
+        if (!srcEmails.length) {
+          lastAppointmentsData = [];
+          listEl.innerHTML = '<div class="admin-empty"><span class="empty-icon">📅</span>Görüş tapılmadı.</div>';
+          return;
+        }
+        query = query.in('profile_email', srcEmails);
+      }
 
       const { data, error } = await query;
 
@@ -4578,11 +4757,27 @@
     // ── Sənədlər ─────────────────────────────────────────────
     // Profil ad→email xəritəsi cache
     let profilesNameCache = null;
+    let profilesSourceCache = {};   // email → 'kurs' | 'xaric'
     async function loadProfilesCache() {
       if (profilesNameCache || !sb) return;
-      const { data } = await sb.from('profiles').select('email, name');
+      const { data } = await sb.from('profiles').select('email, name, source');
       profilesNameCache = {};
-      (data || []).forEach(p => { profilesNameCache[p.email] = p.name || ''; });
+      profilesSourceCache = {};
+      (data || []).forEach(p => {
+        profilesNameCache[p.email] = p.name || '';
+        profilesSourceCache[p.email] = sourceOf(p);
+      });
+    }
+
+    /* consultations və document_status cədvəllərində `source` sütunu yoxdur —
+       onlar yalnız e-poçt üzərindən tələbəyə bağlanır. Ona görə filtr seçilmiş
+       mənbəyə aid e-poçt siyahısına çevrilir və sorğuya `.in()` kimi verilir.
+       null qayıdırsa filtr yoxdur (hamısı). */
+    async function emailsForCurrentSource() {
+      if (adminSourceFilter === 'all') return null;
+      await loadProfilesCache();
+      return Object.keys(profilesSourceCache)
+        .filter(e => profilesSourceCache[e] === adminSourceFilter);
     }
 
     // Sənəd statusuna görə etiket/rəng — 'done' hələ baxılmayıb (yükləndi, gözləyir),
@@ -4660,6 +4855,21 @@
 
         if (!allowedEmails.length) {
           listEl.innerHTML = '<div class="admin-empty"><span class="empty-icon">👤</span>Bu ada uyğun tələbə tapılmadı.</div>';
+          return;
+        }
+      }
+
+      /* Mənbə filtri sorğuya qədər tətbiq olunmalıdır: aşağıdakı sorğuda
+         server tərəfli .limit(200) var, ona görə nəticəni sonradan JS-də
+         süzmək səhv olardı — 200-lük kəsim onsuz da qarışıq gələrdi. */
+      const srcEmails = await emailsForCurrentSource();
+      if (srcEmails) {
+        allowedEmails = allowedEmails
+          ? allowedEmails.filter(e => srcEmails.includes(e))
+          : srcEmails;
+        if (!allowedEmails.length) {
+          lastDocumentsData = [];
+          listEl.innerHTML = '<div class="admin-empty"><span class="empty-icon">📁</span>Bu seçimə uyğun sənəd yoxdur.</div>';
           return;
         }
       }
@@ -4921,6 +5131,36 @@
 
     document.querySelectorAll('.admin-navbtn[data-admin-tab]').forEach(btn => {
       btn.addEventListener('click', () => goToAdminTab(btn.dataset.adminTab));
+    });
+
+    /* ── Mənbə filtri (Hamısı / Kurs / Xaricdə təhsil) ────────
+       Seçim yadda saxlanılır və aktiv tab yenidən yüklənir. Dashboard
+       göstəriciləri hər dəyişiklikdə yenilənir, çünki onlar tabdan asılı
+       olmayaraq həmişə görünən rəqəmlərdir. */
+    function setAdminSourceFilter(value) {
+      adminSourceFilter = value;
+      try { window.localStorage.setItem('btm_admin_source', value); } catch (e) { /* keç */ }
+
+      document.querySelectorAll('#admin-source-filter .asf-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.source === value);
+      });
+
+      /* email→mənbə xəritəsi yenidən qurulmalıdır: panel açıq qalarkən yeni
+         qeydiyyatdan keçən tələbə köhnə cache-də olmur və filtr onu buraxmır. */
+      profilesNameCache = null;
+
+      // goToAdminTab-ın 'dashboard' üçün yükləmə şaxəsi yoxdur — onu ayrıca çağırırıq.
+      if (currentAdminTab === 'dashboard') loadAdminDashboard();
+      else { goToAdminTab(currentAdminTab); loadAdminDashboard(); }
+    }
+
+    document.querySelectorAll('#admin-source-filter .asf-btn').forEach(btn => {
+      btn.addEventListener('click', () => setAdminSourceFilter(btn.dataset.source));
+    });
+
+    // Səhifə açılanda yadda saxlanılmış seçimi düymələrdə göstər
+    document.querySelectorAll('#admin-source-filter .asf-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.source === adminSourceFilter);
     });
 
     // "Daha" bölmə vərəqi
@@ -6830,7 +7070,7 @@
       }
 
       const [profRes, consRes] = await Promise.all([
-        sb.from('profiles').select('email, role, created_at, target_countries, fields, level, budget'),
+        sb.from('profiles').select('email, role, created_at, target_countries, fields, level, budget, source'),
         sb.from('consultations').select('profile_email, status, confirmed')
       ]);
 
@@ -6840,10 +7080,17 @@
         return;
       }
 
+      /* Mənbə filtri burada mütləqdir: iki fərqli auditoriyanın profil
+         tamamlama və konsultasiyaya keçid faizlərini bir yerdə ortalamaq
+         hər iki rəqəmi mənasız edir. */
       const students = (profRes.data || []).filter(p =>
         !ADMIN_EMAILS.includes((p.email || '').toLowerCase()) &&
-        p.role !== 'admin' && p.role !== 'staff');
+        p.role !== 'admin' && p.role !== 'staff' &&
+        (adminSourceFilter === 'all' || sourceOf(p) === adminSourceFilter));
       const total = students.length;
+
+      // Görüşlər də eyni dəstə aid olmalıdır (consultations-da source sütunu yoxdur)
+      const sourceEmailSet = new Set(students.map(p => p.email));
 
       // Profil tamamlama: ölkə + ixtisas + səviyyə doldurulubsa "tamam" sayılır
       const completed = students.filter(p =>
@@ -6853,7 +7100,8 @@
         total ? Math.round(completed / total * 100) + '%' : '—';
 
       // Konsultasiyaya keçid: ən azı bir görüş yazan tələbələrin payı
-      const consults = consRes.error ? [] : (consRes.data || []);
+      const consults = (consRes.error ? [] : (consRes.data || []))
+        .filter(c => adminSourceFilter === 'all' || sourceEmailSet.has(c.profile_email));
       const bookedEmails = new Set(consults.map(c => c.profile_email));
       const booked = students.filter(p => bookedEmails.has(p.email)).length;
       document.getElementById('an-conversion').textContent =
@@ -6906,10 +7154,11 @@
         Array.isArray(s.target_countries) ? s.target_countries.join('; ') : (s.target_countries || ''),
         Array.isArray(s.target_universities) ? s.target_universities.join('; ') : (s.target_universities || ''),
         s.level || '', s.budget || '', s.score || '', s.student_status || 'active',
+        sourceOf(s) === 'xaric' ? 'Xaricdə təhsil' : 'Kurs',
         s.created_at ? new Date(s.created_at).toLocaleDateString('az-AZ') : ''
       ]);
       downloadCSV('telebeler.csv',
-        ['Ad Soyad', 'Email', 'Hədəf ölkə', 'Hədəf universitet', 'Səviyyə', 'Büdcə', 'Bal', 'Status', 'Qeydiyyat tarixi'],
+        ['Ad Soyad', 'Email', 'Hədəf ölkə', 'Hədəf universitet', 'Səviyyə', 'Büdcə', 'Bal', 'Status', 'Mənbə', 'Qeydiyyat tarixi'],
         rows);
     });
 

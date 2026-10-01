@@ -1,0 +1,15 @@
+{
+  "name": "Bilik — Xaricdə Təhsil",
+  "short_name": "Bilik Xaric",
+  "description": "Xaricdə təhsil üçün müraciət: universitet seçimi, sənədlərin yüklənməsi və online konsultasiya.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0F172A",
+  "theme_color": "#0F172A",
+  "lang": "az",
+  "icons": [
+    { "src": "logo.png", "sizes": "1024x1024", "type": "image/jpeg", "purpose": "any" }
+  ]
+}
