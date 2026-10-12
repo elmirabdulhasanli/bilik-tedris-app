@@ -1,0 +1,13 @@
+# Netlify təhlükəsizlik başlıqları — bu fayl `_headers` adı ilə sayt kökündə olmalıdır,
+# Netlify avtomatik tətbiq edir (əlavə quraşdırma lazım deyil).
+#
+# QEYD: Content-Security-Policy-də Supabase domeni sizin layihənizin ünvanına
+# uyğundur (index.html-dəki SUPABASE_URL ilə eynidir). Supabase layihəsini
+# dəyişsəniz, bu faylı da yeniləyin.
+
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://qsenepccyrcudhlqntab.supabase.co; connect-src 'self' https://qsenepccyrcudhlqntab.supabase.co wss://qsenepccyrcudhlqntab.supabase.co https://o4511930865614848.ingest.us.sentry.io; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
