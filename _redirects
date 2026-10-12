@@ -1,0 +1,12 @@
+# Netlify yönləndirmə qaydaları.
+#
+# Qovluq "sürüşdür-burax" (Netlify Drop) ilə yayımlananda layihədəki BÜTÜN
+# fayllar sayta düşür — o cümlədən git tarixçəsi və bazanın qurulum faylı.
+# Bunlar brauzerə verilməməlidir: içində gizli açar olmasa da, git tarixçəsi
+# və tam təhlükəsizlik siyasəti xaricə çıxmalı deyil.
+#
+# Sondakı "!" vacibdir — onsuz Netlify real faylı qaydadan üstün tutur.
+
+/.git/*                       /index.html   404!
+/.claude/*                    /index.html   404!
+/supabase-security-setup.sql  /index.html   404!
