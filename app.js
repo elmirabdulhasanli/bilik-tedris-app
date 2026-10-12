@@ -47,7 +47,7 @@
     // Hər saytın öz ünvanı var: əks halda xaricdə təhsil saytında şifrəsini
     // unudan müraciətçi kurs saytına yönələrdi.
     const SITE_URLS = {
-      full: 'https://biliktedrismerkezi.netlify.app/',
+      full: 'https://biliktedris-merkezi.netlify.app/',
       abroad: 'https://bilik-xaricde-tehsil.netlify.app/'
     };
     const PRODUCTION_URL = SITE_URLS[APP_MODE] || SITE_URLS.full;
