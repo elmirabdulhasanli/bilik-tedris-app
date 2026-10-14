@@ -1,5 +1,0 @@
-# Bu qovluq xaricde tehsil saytidir (bilik-xaricde-tehsil.netlify.app).
-# Netlify-de bu saytin "Base directory" ayari: xaricde-tehsil
-[build]
-  publish = "."
-  command = ""

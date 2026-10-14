@@ -1,5 +1,0 @@
-# Bu qovluq kurs saytidir (biliktedris-merkezi.netlify.app).
-# Netlify-de bu saytin "Base directory" ayari: kurs-sayti
-[build]
-  publish = "."
-  command = ""
