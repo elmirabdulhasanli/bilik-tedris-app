@@ -6,7 +6,7 @@ tələbələr `profiles.source` sütunu ilə ayrılır (`kurs` / `xaric`).
 ```
 kurs-sayti/        -> biliktedris-merkezi.netlify.app
 xaricde-tehsil/    -> bilik-xaricde-tehsil.netlify.app
-supabase-security-setup.sql   (ortaq baza qurulumu — yayımlanmır)
+(baza qurulum faylı repoda saxlanılmır — bax aşağı)
 ```
 
 ## kurs-sayti/
@@ -58,14 +58,21 @@ Hər saytın öz Netlify layihəsi var, hər ikisi bu repodan yayımlanır.
 
 Build command hər ikisində **boşdur** — bu, build tələb etməyən statik saytdır.
 
-Hər qovluqda `netlify.toml`, `_headers` (CSP və təhlükəsizlik başlıqları) və
-`_redirects` (`.git` və SQL faylının bağlanması) var.
+Hər qovluqda `_headers` (CSP və təhlükəsizlik başlıqları) və `_redirects`
+(`.git` qovluğunun bağlanması) var. Base/publish ayarları Netlify panelindədir.
 
 ## Baza
 
-`supabase-security-setup.sql` idempotentdir — neçə dəfə işə salsanız nəticə
-eynidir. Yeni sütun və ya siyasət əlavə ediləndə Supabase → SQL Editor-da
-**kodu yayımlamazdan əvvəl** icra olunmalıdır.
+Qurulum faylı **repoda saxlanılmır** — repo public olduğuna görə RLS
+siyasətləri və admin e-poçtları orada durmamalıdır. Fayl buradadır:
+
+```
+C:\Users\abdul\OneDrive\Desktop\bilik-supabase-setup.sql
+```
+
+İdempotentdir — neçə dəfə işə salsanız nəticə eynidir. Yeni sütun və ya
+siyasət əlavə ediləndə Supabase → SQL Editor-da **kodu yayımlamazdan əvvəl**
+icra olunmalıdır.
 
 ## Yerli sınaq
 

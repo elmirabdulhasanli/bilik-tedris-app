@@ -1,3 +1,8 @@
 .claude/settings.local.json
 .DS_Store
 Thumbs.db
+
+# Baza qurulum faylı repodan çıxarılıb — Desktop-da saxlanılır.
+# Repo public olduğuna görə RLS siyasətləri və admin e-poçtları burada durmamalıdır.
+supabase-security-setup.sql
+*.sql
