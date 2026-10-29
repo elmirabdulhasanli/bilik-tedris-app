@@ -1215,6 +1215,14 @@
         });
       }
 
+      const setIf = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+      setIf('f-prev-university', data.prev_university);
+      setIf('f-prev-field', data.prev_field);
+      setIf('f-prev-year', data.prev_graduation_year);
+      setIf('f-prev-gpa', data.prev_gpa);
+      // İmtahan seçimləri bərpa olunmazdan ƏVVƏL — GRE/GMAT görünən olmalıdır
+      applyLevelUI();
+
       if (data.exams && Array.isArray(data.exams)) {
         document.querySelectorAll('#f-exams .chip').forEach(ch => {
           if (data.exams.includes(ch.textContent)) ch.classList.add('sel');
@@ -1232,6 +1240,15 @@
       }
 
       document.getElementById('profile-level').textContent = data.level || '—';
+      const prevSaved = isGradLevel(data.level) ? formatPrevEducation({
+        university: data.prev_university, field: data.prev_field,
+        year: data.prev_graduation_year, gpa: data.prev_gpa
+      }) : '';
+      const prevRow = document.getElementById('profile-prev-edu-row');
+      if (prevRow) {
+        prevRow.hidden = !prevSaved;
+        document.getElementById('profile-prev-edu').textContent = prevSaved || '—';
+      }
       document.getElementById('profile-field').textContent = selFields.length ? selFields.join(', ') : '—';
       document.getElementById('profile-budget').textContent = data.budget || '—';
       document.getElementById('profile-score').textContent = data.score || '—';
@@ -1574,18 +1591,29 @@
        boşdursa aşağıdakı daxili siyahıya qayıdırıq ki, tətbiq işləməz
        vəziyyətə düşməsin.
     ═══════════════════════════════════════════════════════════ */
+    /* level: null = bütün səviyyələr (eynən country kimi).
+       Adlar dəyişdirilməyib — document_status sətirləri sənədin adına bağlıdır,
+       ad dəyişsəydi artıq yüklənmiş sənədlər siyahıdan "itərdi".
+       Bu siyahı bazanın ilk toxumu ilə (SQL, 21-ci bölmə) eynidir. */
     const DEFAULT_DOC_TEMPLATES = [
-      { doc_name: 'Diplom və qiymət cədvəli', due_date: null, country: null },
-      { doc_name: 'Motivasiya məktubu', due_date: null, country: null },
-      { doc_name: 'CV / Rezüme', due_date: null, country: null },
-      { doc_name: 'Pasportun surəti', due_date: null, country: null },
-      { doc_name: 'IELTS / TOEFL nəticəsi', due_date: null, country: null },
-      { doc_name: 'Tövsiyə məktubu 1', due_date: null, country: null },
-      { doc_name: 'Tövsiyə məktubu 2', due_date: null, country: null },
-      { doc_name: 'Bank arayışı (maliyyə sənədi)', due_date: null, country: null },
-      { doc_name: 'Tibbi sığorta sənədi', due_date: null, country: null },
-      { doc_name: 'Vəsiqəlik foto', due_date: null, country: null },
-      { doc_name: 'Doğum haqqında şəhadətnamə', due_date: null, country: null }
+      { doc_name: 'Diplom və qiymət cədvəli', due_date: null, country: null, level: 'Bakalavr' },
+      { doc_name: 'Bakalavr diplomu', due_date: null, country: null, level: 'Magistr' },
+      { doc_name: 'Bakalavr transkripti (qiymət cədvəli)', due_date: null, country: null, level: 'Magistr' },
+      { doc_name: 'Magistr diplomu', due_date: null, country: null, level: 'Doktorantura' },
+      { doc_name: 'Magistr transkripti (qiymət cədvəli)', due_date: null, country: null, level: 'Doktorantura' },
+      { doc_name: 'Bakalavr diplomu', due_date: null, country: null, level: 'Doktorantura' },
+      { doc_name: 'Tədqiqat təklifi (research proposal)', due_date: null, country: null, level: 'Doktorantura' },
+      { doc_name: 'Tövsiyə məktubu 3', due_date: null, country: null, level: 'Doktorantura' },
+      { doc_name: 'Motivasiya məktubu', due_date: null, country: null, level: null },
+      { doc_name: 'CV / Rezüme', due_date: null, country: null, level: null },
+      { doc_name: 'Pasportun surəti', due_date: null, country: null, level: null },
+      { doc_name: 'IELTS / TOEFL nəticəsi', due_date: null, country: null, level: null },
+      { doc_name: 'Tövsiyə məktubu 1', due_date: null, country: null, level: null },
+      { doc_name: 'Tövsiyə məktubu 2', due_date: null, country: null, level: null },
+      { doc_name: 'Bank arayışı (maliyyə sənədi)', due_date: null, country: null, level: null },
+      { doc_name: 'Tibbi sığorta sənədi', due_date: null, country: null, level: null },
+      { doc_name: 'Vəsiqəlik foto', due_date: null, country: null, level: null },
+      { doc_name: 'Doğum haqqında şəhadətnamə', due_date: null, country: null, level: null }
     ];
 
     let docTemplatesCache = null;
@@ -1620,9 +1648,19 @@
       return data;
     }
 
-    // Tələbənin seçdiyi ölkələrə uyğun sənədləri süz (country boşdursa hamıya aiddir)
+    // Tələbənin formda seçdiyi səviyyə (Bakalavr / Magistr / Doktorantura).
+    function currentStudentLevel() {
+      return document.querySelector('#f-level .radio-opt.sel')?.dataset.value || 'Bakalavr';
+    }
+
+    /* Tələbənin ölkəsinə və səviyyəsinə uyğun sənədləri süz.
+       country və ya level boşdursa — o şablon hamıya aiddir. */
     function filterTemplatesForStudent(templates) {
-      return templates.filter(t => !t.country || selCountries.includes(t.country));
+      const level = currentStudentLevel();
+      return templates.filter(t =>
+        (!t.country || selCountries.includes(t.country)) &&
+        (!t.level || t.level === level)
+      );
     }
 
     function docItemHtml(tpl) {
@@ -1643,8 +1681,17 @@
       const emptyEl = document.getElementById('doc-list-empty');
       if (!listEl) return;
 
-      if (!docTemplatesCache) docTemplatesCache = await fetchDocTemplates();
-      const templates = filterTemplatesForStudent(docTemplatesCache);
+      /* Daxili ehtiyat siyahı keşə YAZILMIR. Səbəb: document_templates yalnız
+         daxil olmuş istifadəçiyə açıqdır, siyahı isə səhifə açılan anda
+         (girişdən əvvəl) yüklənir — baza boş qaytarır və ehtiyat siyahı
+         gəlir. Əvvəllər o, keşə düşür və bir daha bazadan oxunmurdu, yəni
+         tələbə admin paneldə qurulan siyahını heç vaxt görmürdü. */
+      let source = docTemplatesCache;
+      if (!source) {
+        source = await fetchDocTemplates();
+        if (source !== DEFAULT_DOC_TEMPLATES) docTemplatesCache = source;
+      }
+      const templates = filterTemplatesForStudent(source);
 
       if (!templates.length) {
         listEl.innerHTML = '';
@@ -2085,8 +2132,84 @@
     /* ═══════════════════════════════════════════════════════════
        FORM — RADIO / CHİP
     ═══════════════════════════════════════════════════════════ */
+    /* ── Səviyyə: Bakalavr / Magistr / Doktorantura ───────────
+       Magistr və doktorantura müraciətçisinə əvvəlki təhsili soruşulur,
+       imtahan seçimləri dəyişir (SAT/YÖS/Atestat → GRE/GMAT) və sənəd
+       siyahısı səviyyəyə görə süzülür (bax: filterTemplatesForStudent). */
+    function isGradLevel(level) {
+      return level === 'Magistr' || level === 'Doktorantura';
+    }
+
+    function readPrevEducation() {
+      const v = id => (document.getElementById(id)?.value || '').trim();
+      return {
+        university: v('f-prev-university'), field: v('f-prev-field'),
+        year: v('f-prev-year'), gpa: v('f-prev-gpa')
+      };
+    }
+
+    // "BDU · Kompüter elmləri · 2024 · GPA 3.4/4" — boş hissələr atılır
+    function formatPrevEducation(p) {
+      if (!p) return '';
+      const parts = [p.university, p.field, p.year];
+      if (p.gpa) parts.push('GPA ' + p.gpa);
+      return parts.filter(Boolean).join(' · ');
+    }
+
+    function applyLevelUI() {
+      const level = currentStudentLevel();
+      const grad = isGradLevel(level);
+
+      const box = document.getElementById('prev-edu');
+      if (box) box.hidden = !grad;
+
+      // Başlıq: magistr üçün bakalavr, doktorantura üçün magistr təhsili.
+      // data-i18n də dəyişir ki, dil dəyişəndə doğru başlıq tərcümə olunsun.
+      const title = document.getElementById('prev-edu-title');
+      if (title) {
+        const phd = level === 'Doktorantura';
+        const key = phd ? 'prev_edu_title_phd' : 'prev_edu_title_master';
+        title.setAttribute('data-i18n', key);
+        title.textContent = t(key, phd ? 'Magistr təhsiliniz' : 'Bakalavr təhsiliniz');
+      }
+
+      // Səviyyəyə aid olmayan imtahanlar gizlənir VƏ seçimdən çıxarılır —
+      // yoxsa gizli qalan seçim bazaya yazılardı.
+      let changed = false;
+      document.querySelectorAll('#f-exams .chip[data-for]').forEach(ch => {
+        const show = ch.dataset.for === (grad ? 'grad' : 'bachelor');
+        ch.hidden = !show;
+        if (!show && ch.classList.contains('sel')) { ch.classList.remove('sel'); changed = true; }
+      });
+      if (changed) {
+        const existing = {};
+        document.querySelectorAll('.dyn-score-input').forEach(inp => { existing[inp.dataset.exam] = inp.value; });
+        rebuildScoreInputs(existing);
+      }
+    }
+
     document.querySelectorAll('#f-level .radio-opt').forEach(o => {
-      o.onclick = () => { document.querySelectorAll('#f-level .radio-opt').forEach(x => x.classList.remove('sel')); o.classList.add('sel'); };
+      o.onclick = () => {
+        document.querySelectorAll('#f-level .radio-opt').forEach(x => x.classList.remove('sel'));
+        o.classList.add('sel');
+        applyLevelUI();
+      };
+    });
+
+    /* Açılış səhifəsindəki "Magistr / Doktorantura müraciəti" düymələri formu
+       həmin səviyyə seçilmiş açır. Əvvəlcə qaralama bərpa olunur — yoxsa boş
+       forma yeni səviyyə ilə saxlanılıb əvvəl yazılanları silərdi. */
+    document.querySelectorAll('[data-start-level]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        restoreOnboardingDraft();
+        const level = btn.dataset.startLevel;
+        document.querySelectorAll('#f-level .radio-opt').forEach(o => {
+          o.classList.toggle('sel', o.dataset.value === level);
+        });
+        applyLevelUI();
+        saveOnboardingDraft();
+        showScreen('onboarding');
+      });
     });
     document.querySelectorAll('#f-exams .chip').forEach(ch => {
       ch.onclick = () => {
@@ -2120,7 +2243,11 @@
         level: document.querySelector('#f-level .radio-opt.sel')?.dataset.value || '',
         exams: Array.from(document.querySelectorAll('#f-exams .chip.sel')).map(c => c.textContent),
         countries: selCountries, fields: selFields,
-        scores
+        scores,
+        prevUniversity: document.getElementById('f-prev-university')?.value || '',
+        prevField: document.getElementById('f-prev-field')?.value || '',
+        prevYear: document.getElementById('f-prev-year')?.value || '',
+        prevGpa: document.getElementById('f-prev-gpa')?.value || ''
       };
     }
 
@@ -2133,6 +2260,7 @@
         s.countries.length > 0,
         s.fields.length > 0, !!s.level, s.exams.length > 0
       ];
+      if (isGradLevel(s.level)) steps.push(!!s.prevUniversity.trim() && !!s.prevField.trim());
       const done = steps.filter(Boolean).length;
       const pct = Math.round(done / steps.length * 100);
       const fill = document.getElementById('onb-progress-fill');
@@ -2167,6 +2295,8 @@
 
       const set = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
       set('f-name', s.name); set('f-father-name', s.fatherName); set('f-email', s.email); set('f-phone', s.phone);
+      set('f-prev-university', s.prevUniversity); set('f-prev-field', s.prevField);
+      set('f-prev-year', s.prevYear); set('f-prev-gpa', s.prevGpa);
       if (s.budget) setBudgetValue(s.budget);
 
       if (Array.isArray(s.countries)) selCountries = s.countries;
@@ -2177,6 +2307,8 @@
           o.classList.toggle('sel', o.dataset.value === s.level);
         });
       }
+      // İmtahan seçimləri bərpa olunmazdan ƏVVƏL — GRE/GMAT görünən olmalıdır
+      applyLevelUI();
       if (Array.isArray(s.exams) && s.exams.length) {
         document.querySelectorAll('#f-exams .chip').forEach(ch => {
           ch.classList.toggle('sel', s.exams.includes(ch.textContent));
@@ -2213,7 +2345,8 @@
     }
 
     // Bütün onboarding sahələrini avtosaxlamaya bağla
-    ['f-name', 'f-father-name', 'f-email', 'f-phone', 'f-budget', 'f-budget-custom'].forEach(id => {
+    ['f-name', 'f-father-name', 'f-email', 'f-phone', 'f-budget', 'f-budget-custom',
+      'f-prev-university', 'f-prev-field', 'f-prev-year', 'f-prev-gpa'].forEach(id => {
       const el = document.getElementById(id);
       if (el) { el.addEventListener('input', saveOnboardingDraft); el.addEventListener('change', saveOnboardingDraft); }
     });
@@ -2229,6 +2362,18 @@
       const email = document.getElementById('f-email').value.trim();
       const phone = document.getElementById('f-phone').value.trim();
       const level = document.querySelector('#f-level .radio-opt.sel').dataset.value;
+      const grad = isGradLevel(level);
+      const prev = readPrevEducation();
+
+      // Magistr/doktorantura üçün əvvəlki universitet və ixtisas mütləqdir —
+      // müraciəti dəyərləndirmək üçün mərkəzə ilk lazım olan məlumat budur.
+      if (grad && (!prev.university || !prev.field)) {
+        const missing = !prev.university ? 'f-prev-university' : 'f-prev-field';
+        toast(t('prev_edu_required', 'Əvvəlki təhsilinizi qeyd edin: universitet və ixtisas.'), true);
+        const el = document.getElementById(missing);
+        if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.focus({ preventScroll: true }); }
+        return;
+      }
 
       const dynInputs = document.querySelectorAll('.dyn-score-input');
       let scoreArr = [];
@@ -2248,6 +2393,18 @@
           document.getElementById(id).textContent = [name, email || 'qeyd olunmayıb', phone || 'qeyd olunmayıb',
             countryText, uniText, fieldText, level, examsText, score, budget][i];
         });
+
+      const prevText = grad ? formatPrevEducation(prev) : '';
+      const rPrevRow = document.getElementById('r-prev-edu-row');
+      if (rPrevRow) {
+        rPrevRow.hidden = !prevText;
+        document.getElementById('r-prev-edu').textContent = prevText;
+      }
+      const pPrevRow = document.getElementById('profile-prev-edu-row');
+      if (pPrevRow) {
+        pPrevRow.hidden = !prevText;
+        document.getElementById('profile-prev-edu').textContent = prevText || '—';
+      }
 
       const fatherRow = document.getElementById('r-father-name-row');
       if (fatherName) {
@@ -2315,7 +2472,16 @@
           target_countries: selCountries,
           target_universities: selUnis,
           fields: selFields,
-          level, exams, score, budget
+          level, exams, score, budget,
+          /* Əvvəlki təhsil yalnız magistr/doktorantura üçün göndərilir.
+             Bakalavr müraciəti bu sütunlara heç toxunmur — ona görə də
+             onlar bazada yaradılmamışdan əvvəl belə bakalavr axını sınmır. */
+          ...(grad ? {
+            prev_university: prev.university,
+            prev_field: prev.field,
+            prev_graduation_year: prev.year || null,
+            prev_gpa: prev.gpa || null
+          } : {})
           // `source` dbSaveProfile-ın özündə əlavə olunur — bütün yollar üçün.
         }));
 
@@ -2369,6 +2535,27 @@
     const translations = {
       az: {
         page_title: 'BTM - Xaricdə Təhsil',
+        lvl_phd: 'Doktorantura',
+        prev_edu_title_master: 'Bakalavr təhsiliniz',
+        prev_edu_title_phd: 'Magistr təhsiliniz',
+        prev_edu_hint: 'Hələ oxuyursunuzsa, gözlənilən bitirmə ilini yazın.',
+        lbl_prev_university: 'Bitirdiyiniz universitet',
+        lbl_prev_field: 'İxtisas',
+        lbl_prev_year: 'Bitirmə ili',
+        lbl_prev_gpa: 'Orta bal (GPA)',
+        ph_prev_university: 'məs. Bakı Dövlət Universiteti',
+        ph_prev_field: 'məs. Kompüter elmləri',
+        ph_prev_gpa: 'məs. 85/100 və ya 3.4/4',
+        r_prev_edu: 'Əvvəlki təhsil',
+        prev_edu_required: 'Əvvəlki təhsilinizi qeyd edin: universitet və ixtisas.',
+        grad_title: 'Magistratura və doktorantura',
+        grad_sub: 'Eyni formdan müraciət edirsiniz — səviyyəni seçəndə əlavə suallar, imtahan seçimləri və sənəd siyahısı ona uyğunlaşır.',
+        grad_master_t: 'Magistratura',
+        grad_master_d: 'Bakalavr diplomu ilə. Əvvəlki təhsilinizi, IELTS / TOEFL və tələb olunarsa GRE / GMAT nəticənizi qeyd edirsiniz. Sənədlər: bakalavr diplomu, transkript, CV, motivasiya və tövsiyə məktubları.',
+        grad_master_cta: 'Magistr müraciəti',
+        grad_phd_t: 'Doktorantura',
+        grad_phd_d: 'Magistr diplomu ilə. Əvvəlki təhsilinizi qeyd edirsiniz. Sənədlərə magistr diplomu və transkripti, tədqiqat təklifi (research proposal) və üçüncü tövsiyə məktubu əlavə olunur.',
+        grad_phd_cta: 'Doktorantura müraciəti',
         brand_sub: 'Xaricdə Təhsil',
         hero_title: 'Xaricdə təhsil müraciətini buradan başla',
         hero_sub: 'Universitet seçimindən sənədlərin təhvilinə qədər hamısı onlayn. Şəhərdən və ya ölkədən kənardasınızsa, mərkəzə gəlməyə ehtiyac yoxdur.',
@@ -2674,6 +2861,27 @@
 
       en: {
         page_title: 'BTM - Study Abroad',
+        lvl_phd: 'PhD',
+        prev_edu_title_master: 'Your bachelor\'s degree',
+        prev_edu_title_phd: 'Your master\'s degree',
+        prev_edu_hint: 'If you are still studying, enter your expected graduation year.',
+        lbl_prev_university: 'University',
+        lbl_prev_field: 'Field of study',
+        lbl_prev_year: 'Graduation year',
+        lbl_prev_gpa: 'GPA',
+        ph_prev_university: 'e.g. Baku State University',
+        ph_prev_field: 'e.g. Computer science',
+        ph_prev_gpa: 'e.g. 85/100 or 3.4/4',
+        r_prev_edu: 'Previous education',
+        prev_edu_required: 'Please add your previous education: university and field of study.',
+        grad_title: 'Master\'s and PhD',
+        grad_sub: 'You apply through the same form — once you choose your level, the extra questions, exam options and document list adjust to it.',
+        grad_master_t: 'Master\'s',
+        grad_master_d: 'With a bachelor\'s degree. You add your previous education, IELTS / TOEFL and, where required, GRE / GMAT results. Documents: bachelor\'s diploma, transcript, CV, motivation and recommendation letters.',
+        grad_master_cta: 'Apply for a master\'s',
+        grad_phd_t: 'PhD',
+        grad_phd_d: 'With a master\'s degree. You add your previous education. The documents add your master\'s diploma and transcript, a research proposal and a third recommendation letter.',
+        grad_phd_cta: 'Apply for a PhD',
         brand_sub: 'Study Abroad',
         hero_title: 'Start your study-abroad application here',
         hero_sub: 'From choosing a university to submitting your documents — all online. If you live outside the city or the country, there is no need to visit the centre.',
@@ -2965,6 +3173,27 @@
 
       ru: {
         page_title: 'BTM - Обучение за рубежом',
+        lvl_phd: 'Докторантура (PhD)',
+        prev_edu_title_master: 'Ваш бакалавриат',
+        prev_edu_title_phd: 'Ваша магистратура',
+        prev_edu_hint: 'Если вы ещё учитесь, укажите ожидаемый год окончания.',
+        lbl_prev_university: 'Университет',
+        lbl_prev_field: 'Специальность',
+        lbl_prev_year: 'Год окончания',
+        lbl_prev_gpa: 'Средний балл (GPA)',
+        ph_prev_university: 'напр. Бакинский государственный университет',
+        ph_prev_field: 'напр. Компьютерные науки',
+        ph_prev_gpa: 'напр. 85/100 или 3.4/4',
+        r_prev_edu: 'Предыдущее образование',
+        prev_edu_required: 'Укажите предыдущее образование: университет и специальность.',
+        grad_title: 'Магистратура и докторантура',
+        grad_sub: 'Заявка подаётся через ту же форму — после выбора уровня дополнительные вопросы, экзамены и список документов подстраиваются под него.',
+        grad_master_t: 'Магистратура',
+        grad_master_d: 'С дипломом бакалавра. Вы указываете предыдущее образование, IELTS / TOEFL и при необходимости GRE / GMAT. Документы: диплом бакалавра, транскрипт, CV, мотивационное и рекомендательные письма.',
+        grad_master_cta: 'Подать на магистратуру',
+        grad_phd_t: 'Докторантура (PhD)',
+        grad_phd_d: 'С дипломом магистра. Вы указываете предыдущее образование. К документам добавляются диплом и транскрипт магистратуры, исследовательское предложение (research proposal) и третье рекомендательное письмо.',
+        grad_phd_cta: 'Подать на докторантуру',
         brand_sub: 'Учёба за рубежом',
         hero_title: 'Начните заявку на учёбу за рубежом',
         hero_sub: 'От выбора университета до подачи документов — всё онлайн. Если вы за пределами города или страны, приезжать в центр не нужно.',
@@ -3256,6 +3485,27 @@
 
       tr: {
         page_title: 'BTM - Yurt Dışı Eğitim',
+        lvl_phd: 'Doktora',
+        prev_edu_title_master: 'Lisans eğitiminiz',
+        prev_edu_title_phd: 'Yüksek lisans eğitiminiz',
+        prev_edu_hint: 'Hâlâ okuyorsanız, beklenen mezuniyet yılını yazın.',
+        lbl_prev_university: 'Mezun olduğunuz üniversite',
+        lbl_prev_field: 'Bölüm',
+        lbl_prev_year: 'Mezuniyet yılı',
+        lbl_prev_gpa: 'Not ortalaması (GPA)',
+        ph_prev_university: 'örn. Bakü Devlet Üniversitesi',
+        ph_prev_field: 'örn. Bilgisayar bilimleri',
+        ph_prev_gpa: 'örn. 85/100 veya 3.4/4',
+        r_prev_edu: 'Önceki eğitim',
+        prev_edu_required: 'Önceki eğitiminizi belirtin: üniversite ve bölüm.',
+        grad_title: 'Yüksek lisans ve doktora',
+        grad_sub: 'Aynı formdan başvurursunuz — seviyeyi seçtiğinizde ek sorular, sınav seçenekleri ve belge listesi buna göre değişir.',
+        grad_master_t: 'Yüksek lisans',
+        grad_master_d: 'Lisans diplomasıyla. Önceki eğitiminizi, IELTS / TOEFL ve gerekirse GRE / GMAT sonucunuzu belirtirsiniz. Belgeler: lisans diploması, transkript, CV, niyet ve tavsiye mektupları.',
+        grad_master_cta: 'Yüksek lisans başvurusu',
+        grad_phd_t: 'Doktora',
+        grad_phd_d: 'Yüksek lisans diplomasıyla. Önceki eğitiminizi belirtirsiniz. Belgelere yüksek lisans diploması ve transkripti, araştırma önerisi (research proposal) ve üçüncü tavsiye mektubu eklenir.',
+        grad_phd_cta: 'Doktora başvurusu',
         brand_sub: 'Yurt Dışı Eğitim',
         hero_title: 'Yurt dışı eğitim başvurunu buradan başlat',
         hero_sub: 'Üniversite seçiminden belge teslimine kadar her şey çevrimiçi. Şehir veya ülke dışındaysanız merkeze gelmenize gerek yok.',

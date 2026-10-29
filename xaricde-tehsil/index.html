@@ -127,6 +127,24 @@
         </div>
       </section>
 
+      <!-- Magistratura və doktorantura — düymələr formu uyğun səviyyə seçilmiş açır -->
+      <section class="grad">
+        <h2 class="section-h" data-i18n="grad_title">Magistratura və doktorantura</h2>
+        <p class="grad-sub" data-i18n="grad_sub">Eyni formdan müraciət edirsiniz — səviyyəni seçəndə əlavə suallar, imtahan seçimləri və sənəd siyahısı ona uyğunlaşır.</p>
+        <div class="grad-grid">
+          <article class="grad-card">
+            <h3 data-i18n="grad_master_t">Magistratura</h3>
+            <p data-i18n="grad_master_d">Bakalavr diplomu ilə. Əvvəlki təhsilinizi, IELTS / TOEFL və tələb olunarsa GRE / GMAT nəticənizi qeyd edirsiniz. Sənədlər: bakalavr diplomu, transkript, CV, motivasiya və tövsiyə məktubları.</p>
+            <button class="btn grad-cta" data-start-level="Magistr" data-i18n="grad_master_cta">Magistr müraciəti</button>
+          </article>
+          <article class="grad-card">
+            <h3 data-i18n="grad_phd_t">Doktorantura</h3>
+            <p data-i18n="grad_phd_d">Magistr diplomu ilə. Əvvəlki təhsilinizi qeyd edirsiniz. Sənədlərə magistr diplomu və transkripti, tədqiqat təklifi (research proposal) və üçüncü tövsiyə məktubu əlavə olunur.</p>
+            <button class="btn grad-cta" data-start-level="Doktorantura" data-i18n="grad_phd_cta">Doktorantura müraciəti</button>
+          </article>
+        </div>
+      </section>
+
       <section class="hero-achieve">
         <h2 class="section-h" data-i18n="achievements_title">Qəbullarımız</h2>
         <div id="achievements-list" class="achieve-strip"></div>
@@ -384,6 +402,7 @@
       <p class="section-label" data-i18n="profile_edu">Təhsil profili</p>
       <div class="card" style="padding:2px 14px;">
         <div class="list-row"><span data-i18n="pr_level">Hədəf dərəcə</span><span id="profile-level">—</span></div>
+        <div class="list-row" id="profile-prev-edu-row" hidden><span data-i18n="r_prev_edu">Əvvəlki təhsil</span><span id="profile-prev-edu">—</span></div>
         <div class="list-row"><span data-i18n="pr_field">Sahə</span><span id="profile-field">—</span></div>
         <div class="list-row"><span data-i18n="pr_budget">Büdcə (illik)</span><span id="profile-budget">—</span></div>
         <div class="list-row"><span data-i18n="pr_score">İmtahan balı</span><span id="profile-score">—</span></div>
@@ -451,16 +470,48 @@
         <div class="radio-row" id="f-level">
           <div class="radio-opt sel" data-value="Bakalavr" data-i18n="lvl_bachelor">Bakalavr</div>
           <div class="radio-opt" data-value="Magistr" data-i18n="lvl_master">Magistr</div>
+          <div class="radio-opt" data-value="Doktorantura" data-i18n="lvl_phd">Doktorantura</div>
+        </div>
+      </div>
+
+      <!-- Əvvəlki təhsil — yalnız magistr və doktorantura seçiləndə görünür.
+           Magistr üçün bakalavr, doktorantura üçün magistr təhsili soruşulur;
+           başlıq səviyyəyə görə app.js-də dəyişir (applyLevelUI). -->
+      <div class="prev-edu" id="prev-edu" hidden>
+        <p class="prev-edu-title" id="prev-edu-title" data-i18n="prev_edu_title_master">Bakalavr təhsiliniz</p>
+        <p class="prev-edu-hint" data-i18n="prev_edu_hint">Hələ oxuyursunuzsa, gözlənilən bitirmə ilini yazın.</p>
+        <div class="field">
+          <label for="f-prev-university" data-i18n="lbl_prev_university">Bitirdiyiniz universitet</label>
+          <input type="text" id="f-prev-university" autocomplete="organization" placeholder="məs. Bakı Dövlət Universiteti" data-i18n-ph="ph_prev_university">
+        </div>
+        <div class="field">
+          <label for="f-prev-field" data-i18n="lbl_prev_field">İxtisas</label>
+          <input type="text" id="f-prev-field" placeholder="məs. Kompüter elmləri" data-i18n-ph="ph_prev_field">
+        </div>
+        <div class="prev-edu-row">
+          <div class="field">
+            <label for="f-prev-year" data-i18n="lbl_prev_year">Bitirmə ili</label>
+            <input type="text" id="f-prev-year" inputmode="numeric" maxlength="4" placeholder="məs. 2024">
+          </div>
+          <div class="field">
+            <label for="f-prev-gpa" data-i18n="lbl_prev_gpa">Orta bal (GPA)</label>
+            <input type="text" id="f-prev-gpa" placeholder="məs. 85/100 və ya 3.4/4" data-i18n-ph="ph_prev_gpa">
+          </div>
         </div>
       </div>
       <div class="field">
         <label data-i18n="q_exams">Hansı imtahan nəticələrin / sertifikatların var?</label>
+        <!-- data-for: "bachelor" — yalnız bakalavr, "grad" — magistr/doktorantura,
+             atribut yoxdursa — bütün səviyyələr. Mətn dəyişdirilməməlidir:
+             seçimlər bazaya məhz bu mətnlə yazılır. -->
         <div class="chip-group" id="f-exams">
           <div class="chip">IELTS</div>
           <div class="chip">TOEFL</div>
-          <div class="chip">SAT</div>
-          <div class="chip">YÖS</div>
-          <div class="chip">Atestat</div>
+          <div class="chip" data-for="bachelor">SAT</div>
+          <div class="chip" data-for="bachelor">YÖS</div>
+          <div class="chip" data-for="bachelor">Atestat</div>
+          <div class="chip" data-for="grad" hidden>GRE</div>
+          <div class="chip" data-for="grad" hidden>GMAT</div>
           <div class="chip">Digər sertifikat</div>
           <div class="chip">Hələ yoxdur</div>
         </div>
@@ -496,6 +547,7 @@
         <div class="summary-row"><span data-i18n="r_university">Universitet</span><span id="r-university"></span></div>
         <div class="summary-row"><span data-i18n="r_field">Bölmə</span><span id="r-field"></span></div>
         <div class="summary-row"><span data-i18n="r_level">Səviyyə</span><span id="r-level"></span></div>
+        <div class="summary-row" id="r-prev-edu-row" hidden><span data-i18n="r_prev_edu">Əvvəlki təhsil</span><span id="r-prev-edu"></span></div>
         <div class="summary-row"><span data-i18n="r_exams">İmtahan / sertifikat</span><span id="r-exams"></span></div>
         <div class="summary-row"><span data-i18n="r_score">Nəticə balı</span><span id="r-score"></span></div>
         <div class="summary-row"><span data-i18n="r_budget">İllik büdcə</span><span id="r-budget"></span></div>

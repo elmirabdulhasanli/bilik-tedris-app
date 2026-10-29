@@ -2106,18 +2106,29 @@
        boşdursa aşağıdakı daxili siyahıya qayıdırıq ki, tətbiq işləməz
        vəziyyətə düşməsin.
     ═══════════════════════════════════════════════════════════ */
+    /* level: null = bütün səviyyələr (eynən country kimi).
+       Adlar dəyişdirilməyib — document_status sətirləri sənədin adına bağlıdır,
+       ad dəyişsəydi artıq yüklənmiş sənədlər siyahıdan "itərdi".
+       Bu siyahı bazanın ilk toxumu ilə (SQL, 21-ci bölmə) eynidir. */
     const DEFAULT_DOC_TEMPLATES = [
-      { doc_name: 'Diplom və qiymət cədvəli', due_date: null, country: null },
-      { doc_name: 'Motivasiya məktubu', due_date: null, country: null },
-      { doc_name: 'CV / Rezüme', due_date: null, country: null },
-      { doc_name: 'Pasportun surəti', due_date: null, country: null },
-      { doc_name: 'IELTS / TOEFL nəticəsi', due_date: null, country: null },
-      { doc_name: 'Tövsiyə məktubu 1', due_date: null, country: null },
-      { doc_name: 'Tövsiyə məktubu 2', due_date: null, country: null },
-      { doc_name: 'Bank arayışı (maliyyə sənədi)', due_date: null, country: null },
-      { doc_name: 'Tibbi sığorta sənədi', due_date: null, country: null },
-      { doc_name: 'Vəsiqəlik foto', due_date: null, country: null },
-      { doc_name: 'Doğum haqqında şəhadətnamə', due_date: null, country: null }
+      { doc_name: 'Diplom və qiymət cədvəli', due_date: null, country: null, level: 'Bakalavr' },
+      { doc_name: 'Bakalavr diplomu', due_date: null, country: null, level: 'Magistr' },
+      { doc_name: 'Bakalavr transkripti (qiymət cədvəli)', due_date: null, country: null, level: 'Magistr' },
+      { doc_name: 'Magistr diplomu', due_date: null, country: null, level: 'Doktorantura' },
+      { doc_name: 'Magistr transkripti (qiymət cədvəli)', due_date: null, country: null, level: 'Doktorantura' },
+      { doc_name: 'Bakalavr diplomu', due_date: null, country: null, level: 'Doktorantura' },
+      { doc_name: 'Tədqiqat təklifi (research proposal)', due_date: null, country: null, level: 'Doktorantura' },
+      { doc_name: 'Tövsiyə məktubu 3', due_date: null, country: null, level: 'Doktorantura' },
+      { doc_name: 'Motivasiya məktubu', due_date: null, country: null, level: null },
+      { doc_name: 'CV / Rezüme', due_date: null, country: null, level: null },
+      { doc_name: 'Pasportun surəti', due_date: null, country: null, level: null },
+      { doc_name: 'IELTS / TOEFL nəticəsi', due_date: null, country: null, level: null },
+      { doc_name: 'Tövsiyə məktubu 1', due_date: null, country: null, level: null },
+      { doc_name: 'Tövsiyə məktubu 2', due_date: null, country: null, level: null },
+      { doc_name: 'Bank arayışı (maliyyə sənədi)', due_date: null, country: null, level: null },
+      { doc_name: 'Tibbi sığorta sənədi', due_date: null, country: null, level: null },
+      { doc_name: 'Vəsiqəlik foto', due_date: null, country: null, level: null },
+      { doc_name: 'Doğum haqqında şəhadətnamə', due_date: null, country: null, level: null }
     ];
 
     let docTemplatesCache = null;
@@ -2152,9 +2163,19 @@
       return data;
     }
 
-    // Tələbənin seçdiyi ölkələrə uyğun sənədləri süz (country boşdursa hamıya aiddir)
+    // Tələbənin formda seçdiyi səviyyə (Bakalavr / Magistr / Doktorantura).
+    function currentStudentLevel() {
+      return document.querySelector('#f-level .radio-opt.sel')?.dataset.value || 'Bakalavr';
+    }
+
+    /* Tələbənin ölkəsinə və səviyyəsinə uyğun sənədləri süz.
+       country və ya level boşdursa — o şablon hamıya aiddir. */
     function filterTemplatesForStudent(templates) {
-      return templates.filter(t => !t.country || selCountries.includes(t.country));
+      const level = currentStudentLevel();
+      return templates.filter(t =>
+        (!t.country || selCountries.includes(t.country)) &&
+        (!t.level || t.level === level)
+      );
     }
 
     function docItemHtml(tpl) {
@@ -2175,8 +2196,17 @@
       const emptyEl = document.getElementById('doc-list-empty');
       if (!listEl) return;
 
-      if (!docTemplatesCache) docTemplatesCache = await fetchDocTemplates();
-      const templates = filterTemplatesForStudent(docTemplatesCache);
+      /* Daxili ehtiyat siyahı keşə YAZILMIR. Səbəb: document_templates yalnız
+         daxil olmuş istifadəçiyə açıqdır, siyahı isə səhifə açılan anda
+         (girişdən əvvəl) yüklənir — baza boş qaytarır və ehtiyat siyahı
+         gəlir. Əvvəllər o, keşə düşür və bir daha bazadan oxunmurdu, yəni
+         tələbə admin paneldə qurulan siyahını heç vaxt görmürdü. */
+      let source = docTemplatesCache;
+      if (!source) {
+        source = await fetchDocTemplates();
+        if (source !== DEFAULT_DOC_TEMPLATES) docTemplatesCache = source;
+      }
+      const templates = filterTemplatesForStudent(source);
 
       if (!templates.length) {
         listEl.innerHTML = '';
@@ -4554,6 +4584,12 @@
         ['Universitet', Array.isArray(student.target_universities) ? student.target_universities.join(', ') : (student.target_universities || '—')],
         ['İxtisas', Array.isArray(student.fields) ? student.fields.join(', ') : (student.fields || '—')],
         ['Səviyyə', student.level || '—'],
+        ...((student.level === 'Magistr' || student.level === 'Doktorantura') ? [[
+          'Əvvəlki təhsil',
+          [student.prev_university, student.prev_field, student.prev_graduation_year,
+            student.prev_gpa ? 'GPA ' + student.prev_gpa : '']
+            .filter(Boolean).join(' · ') || '—'
+        ]] : []),
         ['İmtahan', student.exams ? (Array.isArray(student.exams) ? student.exams.join(', ') : student.exams) : '—'],
         ['Bal', student.score || '—'],
         ['Büdcə', student.budget || '—'],
@@ -5218,7 +5254,8 @@
             <span class="empty-icon">📋</span>
             <b>Baza siyahısı boşdur</b><br>
             <span style="font-size:12px; color:var(--ink-soft); line-height:1.6;">
-              Hazırda tələbələrə tətbiqin daxili 11 sənədlik siyahısı göstərilir.
+              Hazırda tələbələrə tətbiqin daxili ${DEFAULT_DOC_TEMPLATES.length} sənədlik siyahısı göstərilir
+              (səviyyəyə görə süzülür).
               Aşağıdakı düymə ilə onu bazaya köçürüb sonra buradan idarə edə bilərsiniz.</span>
             <div class="admin-confirm-row">
               <button class="admin-btn-primary" id="seed-doctemplates-btn">Daxili siyahını bazaya köçür</button>
@@ -5239,6 +5276,9 @@
             <p class="admin-row-sub">${t.country ? escapeHtml(t.country) : 'Bütün ölkələr'} · ${t.due_date ? escapeHtml(t.due_date) : 'tarixsiz'} · sıra ${t.sort_order}</p>
           </div>
           <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
+            <select class="status-select doc-tpl-level" data-id="${t.id}" title="Bu sənəd hansı səviyyədəki tələbələrə göstərilsin">
+              ${['', 'Bakalavr', 'Magistr', 'Doktorantura'].map(l => `<option value="${l}" ${(t.level || '') === l ? 'selected' : ''}>${l || 'Bütün səviyyələr'}</option>`).join('')}
+            </select>
             <button class="admin-action-btn toggle-doc-tpl" data-id="${t.id}" data-active="${t.active}">${t.active ? 'Gizlət' : 'Göstər'}</button>
             <button class="admin-action-btn danger del-doc-tpl" data-id="${t.id}" data-name="${escapeHtml(t.doc_name)}">Sil</button>
           </div>`;
@@ -5246,6 +5286,17 @@
       });
       listEl.innerHTML = '';
       listEl.appendChild(card);
+
+      listEl.querySelectorAll('.doc-tpl-level').forEach(sel => {
+        sel.addEventListener('change', async () => {
+          const level = sel.value || null;
+          const { error } = await sb.from('document_templates').update({ level }).eq('id', sel.dataset.id);
+          if (error) { toast('Xəta: ' + error.message, true); loadDocTemplatesAdmin(); return; }
+          logAudit('Sənəd şablonunun səviyyəsi dəyişdi', sel.dataset.id, level || 'bütün səviyyələr');
+          docTemplatesCache = null;
+          toast('✓ Səviyyə yeniləndi');
+        });
+      });
 
       listEl.querySelectorAll('.toggle-doc-tpl').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -5272,7 +5323,8 @@
     async function seedDocTemplates() {
       if (!sb) return;
       const rows = DEFAULT_DOC_TEMPLATES.map((t, i) => ({
-        doc_name: t.doc_name, country: null, due_date: null, sort_order: i, active: true
+        doc_name: t.doc_name, country: null, level: t.level || null,
+        due_date: null, sort_order: i, active: true
       }));
       const { error } = await sb.from('document_templates').insert(rows);
       if (error) { toast('Xəta: ' + error.message, true); return; }
@@ -5285,14 +5337,15 @@
     document.getElementById('add-doc-template-btn')?.addEventListener('click', async () => {
       const name = document.getElementById('new-doc-name').value.trim();
       const country = document.getElementById('new-doc-country').value || null;
+      const level = document.getElementById('new-doc-level')?.value || null;
       const due = document.getElementById('new-doc-due').value || null;
       const order = parseInt(document.getElementById('new-doc-order').value, 10) || 0;
       if (!name) { toast('Sənədin adını yazın', true); return; }
       if (!sb) return;
       const { error } = await sb.from('document_templates')
-        .insert({ doc_name: name, country, due_date: due, sort_order: order, active: true });
+        .insert({ doc_name: name, country, level, due_date: due, sort_order: order, active: true });
       if (error) { toast('Xəta: ' + error.message, true); return; }
-      logAudit('Sənəd şablonu əlavə edildi', name, country || 'bütün ölkələr');
+      logAudit('Sənəd şablonu əlavə edildi', name, [country || 'bütün ölkələr', level || 'bütün səviyyələr'].join(' · '));
       document.getElementById('new-doc-name').value = '';
       document.getElementById('new-doc-due').value = '';
       docTemplatesCache = null;
@@ -7153,12 +7206,16 @@
         s.name || '', s.email || '',
         Array.isArray(s.target_countries) ? s.target_countries.join('; ') : (s.target_countries || ''),
         Array.isArray(s.target_universities) ? s.target_universities.join('; ') : (s.target_universities || ''),
-        s.level || '', s.budget || '', s.score || '', s.student_status || 'active',
+        s.level || '', s.prev_university || '', s.prev_field || '',
+        s.prev_graduation_year || '', s.prev_gpa || '',
+        s.budget || '', s.score || '', s.student_status || 'active',
         sourceOf(s) === 'xaric' ? 'Xaricdə təhsil' : 'Kurs',
         s.created_at ? new Date(s.created_at).toLocaleDateString('az-AZ') : ''
       ]);
       downloadCSV('telebeler.csv',
-        ['Ad Soyad', 'Email', 'Hədəf ölkə', 'Hədəf universitet', 'Səviyyə', 'Büdcə', 'Bal', 'Status', 'Mənbə', 'Qeydiyyat tarixi'],
+        ['Ad Soyad', 'Email', 'Hədəf ölkə', 'Hədəf universitet', 'Səviyyə',
+          'Əvvəlki universitet', 'Əvvəlki ixtisas', 'Bitirmə ili', 'GPA',
+          'Büdcə', 'Bal', 'Status', 'Mənbə', 'Qeydiyyat tarixi'],
         rows);
     });
 
