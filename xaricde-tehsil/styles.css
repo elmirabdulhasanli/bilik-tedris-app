@@ -2316,3 +2316,87 @@
     @media (max-width: 759px) {
       .grad-cta { width: 100%; align-self: stretch; }
     }
+
+    /* ═══════════════════════════════════════════════════════════
+       QƏRARSIZ / "DİGƏR" / ÖLKƏ TƏKLİFİ / TƏQAÜD
+    ═══════════════════════════════════════════════════════════ */
+
+    /* Kataloqdan kənar cavablar — adi çiplərdən fərqlənsin deyə qırıq xətli */
+    .chip-extra { margin-top: 8px; }
+
+    .chip.chip-soft {
+      border-style: dashed;
+      color: var(--ink-soft);
+      background: transparent;
+    }
+
+    .chip.chip-soft.sel {
+      border-style: solid;
+      border-color: var(--teal);
+      background: var(--teal-bg);
+      color: var(--teal);
+    }
+
+    .extra-other-input { margin-top: 8px; }
+
+    .undecided-note {
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--teal);
+      margin: 8px 0 0;
+    }
+
+    /* Ölkəni bilməyənə təklif */
+    .country-suggest {
+      margin-top: 10px;
+      padding: 12px 12px 10px;
+      border-radius: 12px;
+      background: var(--teal-bg);
+    }
+
+    .suggest-title {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--navy);
+      margin: 0 0 8px;
+    }
+
+    .suggest-hint {
+      font-size: 11px;
+      color: var(--ink-soft);
+      margin: 8px 0 0;
+    }
+
+    /* Təklif çipləri <button>-dur — brauzerin standart düymə görünüşünü sıfırla */
+    .chip.chip-suggest {
+      font-family: inherit;
+      background: #fff;
+      border-color: var(--teal);
+      color: var(--teal);
+      cursor: pointer;
+    }
+
+    .chip.chip-suggest:hover { background: var(--teal); color: #fff; }
+
+    /* "Yalnız təqaüdlə" seçiləndə çıxan xəbərdarlıq */
+    .scholarship-note {
+      margin-top: 10px;
+      padding: 12px 14px;
+      border-left: 3px solid var(--gold);
+      border-radius: 0 10px 10px 0;
+      background: #FFF8E6;
+    }
+
+    .scholarship-note .sn-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--gold-deep);
+      margin: 0 0 4px;
+    }
+
+    .scholarship-note .sn-body {
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--ink);
+      margin: 0;
+    }

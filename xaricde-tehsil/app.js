@@ -1144,6 +1144,7 @@
         ch.onclick = () => {
           if (selCountries.includes(country)) selCountries = selCountries.filter(x => x !== country);
           else if (selCountries.length < 5) selCountries.push(country);
+          if (selCountries.length) clearUndecided('country');
           renderCountryChips(); renderFieldChips();
           if (typeof saveOnboardingDraft === 'function') saveOnboardingDraft();
         };
@@ -1161,6 +1162,7 @@
         ch.onclick = () => {
           if (selFields.includes(d)) selFields = selFields.filter(x => x !== d);
           else if (selFields.length < 5) selFields.push(d);
+          if (selFields.length) clearUndecided('field');
           renderFieldChips();
           if (typeof saveOnboardingDraft === 'function') saveOnboardingDraft();
         };
@@ -1168,6 +1170,155 @@
       });
     }
     renderCountryChips(); renderFieldChips();
+
+    /* ═══════════════════════════════════════════════════════════
+       QƏRARSIZ VƏ "DİGƏR" — ölkə və ixtisas
+       ──────────────────────────────────────────────────────────
+       Müraciətçilərin təxminən yarısı ölkəsiz gəlir, bəziləri ixtisası
+       da bilmir, bəziləri isə kataloqda olmayan ölkə istəyir. Hər iki
+       siyahının altında iki seçim var:
+         • "Hələ qərar verməmişəm" — konkret seçimlərlə bir-birini istisna edir
+         • "Digər" — yazı xanası açır, kataloq seçimləri ilə birlikdə ola bilər
+       Vəziyyət çiplərin .sel sinfində saxlanılır (imtahan çipləri kimi) —
+       ayrıca dəyişən yoxdur, ona görə DOM ilə uyğunsuzluq yaranmır.
+    ═══════════════════════════════════════════════════════════ */
+    function extraState(kind) {
+      const box = document.getElementById(`f-${kind}-extra`);
+      return {
+        undecided: !!box?.querySelector('[data-extra="undecided"].sel'),
+        otherOn: !!box?.querySelector('[data-extra="other"].sel'),
+        otherText: (document.getElementById(`f-${kind}-other`)?.value || '').trim()
+      };
+    }
+    function countryUndecided() { return extraState('country').undecided; }
+    function fieldUndecided() { return extraState('field').undecided; }
+    // "Digər" yazısı yalnız çip seçili olanda sayılır
+    function countryOther() { const s = extraState('country'); return s.otherOn ? s.otherText : ''; }
+    function fieldOther() { const s = extraState('field'); return s.otherOn ? s.otherText : ''; }
+
+    // Ekranda göstəriləcək mətn: "Qərar verməyib" və ya "Almaniya, Lüksemburq (digər)"
+    function selectionDisplay(kind, empty) {
+      const undecided = kind === 'country' ? countryUndecided() : fieldUndecided();
+      if (undecided) return t('val_undecided', 'Qərar verməyib');
+      const parts = [...(kind === 'country' ? selCountries : selFields)];
+      const other = kind === 'country' ? countryOther() : fieldOther();
+      if (other) parts.push(`${other} (${t('extra_other', 'Digər').toLowerCase()})`);
+      return parts.length ? parts.join(', ') : empty;
+    }
+
+    function refreshExtraUI(kind) {
+      const s = extraState(kind);
+      const input = document.getElementById(`f-${kind}-other`);
+      if (input) input.hidden = !s.otherOn;
+      const note = document.getElementById(`f-${kind}-undecided-note`);
+      if (note) note.hidden = !s.undecided;
+      if (kind === 'country') renderCountrySuggestions();
+    }
+
+    function clearUndecided(kind) {
+      document.querySelector(`#f-${kind}-extra [data-extra="undecided"]`)?.classList.remove('sel');
+      refreshExtraUI(kind);
+    }
+
+    // Qaralama və ya bazadan bərpa üçün
+    function setExtra(kind, v) {
+      const box = document.getElementById(`f-${kind}-extra`);
+      if (!box) return;
+      box.querySelector('[data-extra="undecided"]')?.classList.toggle('sel', !!v.undecided);
+      box.querySelector('[data-extra="other"]')?.classList.toggle('sel', !!v.otherOn);
+      const input = document.getElementById(`f-${kind}-other`);
+      if (input && v.otherText !== undefined) input.value = v.otherText || '';
+      refreshExtraUI(kind);
+    }
+
+    function bindExtra(kind) {
+      const box = document.getElementById(`f-${kind}-extra`);
+      if (!box) return;
+      box.querySelector('[data-extra="undecided"]')?.addEventListener('click', e => {
+        const on = !e.currentTarget.classList.contains('sel');
+        e.currentTarget.classList.toggle('sel', on);
+        if (on) {
+          // Qərarsızdırsa konkret seçimlər və "Digər" təmizlənir
+          if (kind === 'country') selCountries = []; else selFields = [];
+          box.querySelector('[data-extra="other"]')?.classList.remove('sel');
+          const input = document.getElementById(`f-${kind}-other`);
+          if (input) input.value = '';
+          renderCountryChips(); renderFieldChips();
+        }
+        refreshExtraUI(kind);
+        saveOnboardingDraft();
+      });
+      box.querySelector('[data-extra="other"]')?.addEventListener('click', e => {
+        const on = !e.currentTarget.classList.contains('sel');
+        e.currentTarget.classList.toggle('sel', on);
+        if (on) box.querySelector('[data-extra="undecided"]')?.classList.remove('sel');
+        refreshExtraUI(kind);
+        if (on) document.getElementById(`f-${kind}-other`)?.focus();
+        saveOnboardingDraft();
+      });
+      document.getElementById(`f-${kind}-other`)?.addEventListener('input', saveOnboardingDraft);
+    }
+    bindExtra('country');
+    bindExtra('field');
+
+    /* ── Ölkə təklifi (ölkəni bilməyənlər üçün) ───────────────
+       Yalnız kodda onsuz da olan məlumata söykənir: hər ölkənin xərc
+       səviyyəsi (COUNTRY_COST_TIER) və seçilmiş imtahan. İxtisasa görə
+       təklif etmirik — hər universitet bütün ixtisasları "təklif edir",
+       yəni buna dair real məlumat yoxdur. */
+    const EXAM_COUNTRY_HINTS = {
+      'YÖS': ['Türkiyə'],
+      'SAT': ['ABŞ', 'Kanada'],
+      'GRE': ['ABŞ', 'Kanada'],
+      'GMAT': ['ABŞ', 'Kanada', 'Böyük Britaniya']
+    };
+
+    function suggestCountries() {
+      const budget = getBudgetValue();
+      const b = budget in BUDGET_INDEX ? BUDGET_INDEX[budget] : null;   // öz büdcəsini yazıbsa — filtr yoxdur
+      const exams = Array.from(document.querySelectorAll('#f-exams .chip.sel')).map(c => c.textContent);
+      const hinted = new Set(exams.flatMap(e => EXAM_COUNTRY_HINTS[e] || []));
+      return Object.keys(DATA)
+        .map(c => ({ c, tier: COUNTRY_COST_TIER[c] ?? 1, hint: hinted.has(c) }))
+        .filter(x => b === null || x.tier <= b)
+        .sort((a, z) => (z.hint - a.hint) || (a.tier - z.tier) || a.c.localeCompare(z.c, 'az'))
+        .slice(0, 6)
+        .map(x => x.c);
+    }
+
+    function renderCountrySuggestions() {
+      const box = document.getElementById('f-country-suggest');
+      if (!box) return;
+      box.hidden = !countryUndecided();
+      if (box.hidden) return;
+      const list = box.querySelector('.suggest-chips');
+      list.innerHTML = suggestCountries().map(c =>
+        `<button type="button" class="chip chip-suggest" data-country="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join('');
+      list.querySelectorAll('.chip-suggest').forEach(btn => {
+        btn.addEventListener('click', () => {
+          // Təklifə toxundu — artıq qərarsız deyil, ölkə seçimə əlavə olunur
+          if (!selCountries.includes(btn.dataset.country) && selCountries.length < 5) selCountries.push(btn.dataset.country);
+          clearUndecided('country');
+          renderCountryChips(); renderFieldChips();
+          saveOnboardingDraft();
+        });
+      });
+    }
+
+    /* ── "Yalnız təqaüdlə" ────────────────────────────────────
+       Dəyər UI dilindən asılı deyil — bazaya və admin filtrinə məhz bu
+       mətn gedir (option-un value atributu ilə eynidir). */
+    const SCHOLARSHIP_BUDGET = 'Yalnız təqaüdlə';
+    function refreshScholarshipNote() {
+      const note = document.getElementById('f-scholarship-note');
+      if (note) note.hidden = getBudgetValue() !== SCHOLARSHIP_BUDGET;
+    }
+
+    ['f-budget', 'f-budget-custom'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      ['change', 'input'].forEach(ev => el.addEventListener(ev, () => { refreshScholarshipNote(); renderCountrySuggestions(); }));
+    });
 
     /* Ümumi məzmunu (xidmətlər, komanda, nailiyyətlər, tərəfdaşlar, xəbərlər,
        sınaq imtahanları, universitet kataloqu) bazadan yenidən oxuyur.
@@ -1201,6 +1352,8 @@
       if (data.target_countries) selCountries = data.target_countries;
       if (data.target_universities) selUnis = data.target_universities;
       if (data.fields) selFields = data.fields;
+      setExtra('country', { undecided: data.country_undecided, otherOn: !!data.country_other, otherText: data.country_other || '' });
+      setExtra('field', { undecided: data.field_undecided, otherOn: !!data.field_other, otherText: data.field_other || '' });
       
       if (data.father_name) document.getElementById('f-father-name').value = data.father_name;
       if (data.phone) document.getElementById('f-phone').value = data.phone;
@@ -1249,10 +1402,10 @@
         prevRow.hidden = !prevSaved;
         document.getElementById('profile-prev-edu').textContent = prevSaved || '—';
       }
-      document.getElementById('profile-field').textContent = selFields.length ? selFields.join(', ') : '—';
+      document.getElementById('profile-field').textContent = selectionDisplay('field', '—');
       document.getElementById('profile-budget').textContent = data.budget || '—';
       document.getElementById('profile-score').textContent = data.score || '—';
-      document.getElementById('profile-countries').textContent = selCountries.length ? selCountries.join(', ') : '—';
+      document.getElementById('profile-countries').textContent = selectionDisplay('country', '—');
 
       syncHomeSummary();
 
@@ -1313,7 +1466,12 @@
       const docItems = document.querySelectorAll('#doc-list .doc-item');
       const docsTotal = docItems.length;
       const docsDone = document.querySelectorAll('#doc-list .doc-item[data-status="done"]').length;
-      const hasProfile = selCountries.length > 0 && selFields.length > 0;
+      // Konkret seçim, "Digər" və ya "qərarsızam" — üçü də profilin dolu olması deməkdir.
+      // Əks halda qərarsız adam həmişə "Profilini doldur" addımında qalardı.
+      const hasCountry = selCountries.length > 0 || !!countryOther() || countryUndecided();
+      const hasField = selFields.length > 0 || !!fieldOther() || fieldUndecided();
+      const hasProfile = hasCountry && hasField;
+      const isUndecided = countryUndecided() || fieldUndecided();
       const hasUnis = selUnis.length > 0;
       const hasConsult = lastMyConsultations.some(c => apptStatusMeta(c).status !== 'rejected');
 
@@ -1324,6 +1482,9 @@
       let state;
       if (!hasProfile) {
         state = { title: t('ns_fill_profile_title', 'Profilini doldur'), sub: t('ns_fill_profile_sub', 'Ölkə, ixtisas və büdcəni qeyd et ki, sənə uyğun universitetləri göstərək.'), btn: t('fill_form', 'Formu doldur'), action: 'onboarding' };
+      } else if (isUndecided && !hasConsult) {
+        // Ölkə/ixtisas bilinmirsə universitet seçmək mənasızdır — əvvəlcə məsləhət
+        state = { title: t('ns_undecided_title', 'Seçimdə kömək lazımdır'), sub: t('ns_undecided_sub', 'Ölkə və ya ixtisası hələ seçməmisiniz — məsləhətçi ilə görüşdə birlikdə müəyyən edəcəksiniz.'), btn: t('ns_consult_btn', 'Görüş planlaşdır'), action: 'consult' };
       } else if (!hasUnis) {
         state = { title: t('ns_pick_unis_title', 'Universitet seç'), sub: t('ns_pick_unis_sub', 'Profilinə uyğun universitetlərə bax və maraqlandıqlarını seç.'), btn: t('pick_unis_btn', 'Universitetlərə bax'), action: 'unis' };
       } else if (docsTotal && docsDone === 0) {
@@ -1849,7 +2010,7 @@
       "Böyük Britaniya": 2, "ABŞ": 2, "İsveçrə": 2, "Kanada": 2
     };
     const BUDGET_INDEX = {
-      '3 000 €-dan az': 0, '3 000 – 7 000 €': 1, '7 000 – 15 000 €': 2, '15 000 €-dan çox': 3
+      '3 000 €-dan az': 0, 'Yalnız təqaüdlə': 0, '3 000 – 7 000 €': 1, '7 000 – 15 000 €': 2, '15 000 €-dan çox': 3
     };
 
     // Büdcə seçimində "Digər (özün yaz)" seçilibsə əl ilə yazılan mətni, əks halda
@@ -1874,6 +2035,7 @@
         sel.value = 'other';
         if (custom) { custom.value = val; custom.style.display = 'block'; }
       }
+      if (typeof refreshScholarshipNote === 'function') refreshScholarshipNote();
     }
     document.getElementById('f-budget')?.addEventListener('change', () => {
       const custom = document.getElementById('f-budget-custom');
@@ -2218,6 +2380,7 @@
         const existingValues = {};
         document.querySelectorAll('.dyn-score-input').forEach(inp => existingValues[inp.dataset.exam] = inp.value);
         rebuildScoreInputs(existingValues);
+        renderCountrySuggestions();   // YÖS → Türkiyə və s. — seçim dəyişəndən sonra
       };
     });
 
@@ -2243,6 +2406,12 @@
         level: document.querySelector('#f-level .radio-opt.sel')?.dataset.value || '',
         exams: Array.from(document.querySelectorAll('#f-exams .chip.sel')).map(c => c.textContent),
         countries: selCountries, fields: selFields,
+        countryUndecided: extraState('country').undecided,
+        countryOtherOn: extraState('country').otherOn,
+        countryOther: extraState('country').otherText,
+        fieldUndecided: extraState('field').undecided,
+        fieldOtherOn: extraState('field').otherOn,
+        fieldOther: extraState('field').otherText,
         scores,
         prevUniversity: document.getElementById('f-prev-university')?.value || '',
         prevField: document.getElementById('f-prev-field')?.value || '',
@@ -2257,8 +2426,10 @@
       // profil tamamlandıqdan sonra ayrıca "Universitetlər" ekranında edilir)
       const steps = [
         !!s.name.trim(), !!s.email.trim(), !!s.phone.trim(),
-        s.countries.length > 0,
-        s.fields.length > 0, !!s.level, s.exams.length > 0
+        // Konkret seçim, "Digər" və ya "qərarsızam" — üçü də cavabdır
+        s.countries.length > 0 || s.countryUndecided || (s.countryOtherOn && !!s.countryOther.trim()),
+        s.fields.length > 0 || s.fieldUndecided || (s.fieldOtherOn && !!s.fieldOther.trim()),
+        !!s.level, s.exams.length > 0
       ];
       if (isGradLevel(s.level)) steps.push(!!s.prevUniversity.trim() && !!s.prevField.trim());
       const done = steps.filter(Boolean).length;
@@ -2301,6 +2472,8 @@
 
       if (Array.isArray(s.countries)) selCountries = s.countries;
       if (Array.isArray(s.fields)) selFields = s.fields;
+      setExtra('country', { undecided: s.countryUndecided, otherOn: s.countryOtherOn, otherText: s.countryOther });
+      setExtra('field', { undecided: s.fieldUndecided, otherOn: s.fieldOtherOn, otherText: s.fieldOther });
 
       if (s.level) {
         document.querySelectorAll('#f-level .radio-opt').forEach(o => {
@@ -2382,9 +2555,9 @@
       const budget = getBudgetValue();
       const exams = Array.from(document.querySelectorAll('#f-exams .chip.sel')).map(c => c.textContent);
       const examsText = exams.length ? exams.join(', ') : 'seçilməyib';
-      const countryText = selCountries.length ? selCountries.join(', ') : 'seçilməyib';
+      const countryText = selectionDisplay('country', 'seçilməyib');
       const uniText = selUnis.length ? selUnis.join(', ') : 'seçilməyib';
-      const fieldText = selFields.length ? selFields.join(', ') : 'seçilməyib';
+      const fieldText = selectionDisplay('field', 'seçilməyib');
 
       // Nəticə ekranını doldur
       document.getElementById('result-name-title').textContent = 'Təşəkkürlər, ' + name.split(' ')[0];
@@ -2415,7 +2588,16 @@
       }
 
       const noEl = document.getElementById('r-note');
-      noEl.innerHTML = (!exams.length || exams.includes('Hələ yoxdur'))
+      // Qərarsız və təqaüd istəyən üçün xüsusi qeyd; yoxdursa — imtahana görə
+      const noteBlocks = [];
+      if (countryUndecided() || fieldUndecided()) {
+        noteBlocks.push(`<p class="uni-name" style="margin-bottom:4px;">${escapeHtml(t('res_undecided_title', 'Seçimi birlikdə edəcəyik'))}</p><p class="uni-loc">${escapeHtml(t('res_undecided_sub', 'Ölkə və ya ixtisası hələ seçməmisiniz — konsultasiyada sizinlə birlikdə müəyyən edəcəyik. Aşağıdakı düymə ilə görüş planlaşdırın.'))}</p>`);
+      }
+      if (budget === SCHOLARSHIP_BUDGET) {
+        noteBlocks.push(`<p class="uni-name" style="margin-bottom:4px;">${escapeHtml(t('scholarship_note_title', 'Təqaüd yüksək akademik nəticə tələb edir'))}</p><p class="uni-loc">${escapeHtml(t('scholarship_note_body', 'Əksər təqaüdlər üçün güclü IELTS/TOEFL, SAT/YÖS balı və yüksək orta bal lazımdır. Hazırlıq lazımdırsa, mərkəzimizin kursları haqqında məsləhətçidən soruşun.'))}</p>`);
+      }
+      if (noteBlocks.length) noEl.innerHTML = noteBlocks.join('<div style="height:10px"></div>');
+      else noEl.innerHTML = (!exams.length || exams.includes('Hələ yoxdur'))
         ? '<p class="uni-name" style="margin-bottom:4px;">İmtahana hazırlıq lazımdır</p><p class="uni-loc">Hələ imtahan nəticən yoxdursa, məsləhətçi sənə uyğun imtahan və hazırlıq müddətini müəyyən etməyə kömək edəcək.</p>'
         : '<p class="uni-name" style="margin-bottom:4px;">Universitet siyahısı hazırlanır</p><p class="uni-loc">Mövcud nəticələrinlə seçdiyin ölkə üzrə uyğun universitetlər "Universitet" bölməsində yenilənəcək.</p>';
 
@@ -2470,6 +2652,10 @@
         const { error } = await withTimeout(dbSaveProfile({
           name, father_name: fatherName || null, email, phone,
           target_countries: selCountries,
+          country_undecided: countryUndecided(),
+          country_other: countryOther() || null,
+          field_undecided: fieldUndecided(),
+          field_other: fieldOther() || null,
           target_universities: selUnis,
           fields: selFields,
           level, exams, score, budget,
@@ -2535,6 +2721,22 @@
     const translations = {
       az: {
         page_title: 'BTM - Xaricdə Təhsil',
+        extra_undecided: 'Hələ qərar verməmişəm',
+        extra_other: 'Digər',
+        ph_country_other: 'Hansı ölkə? məs. Lüksemburq',
+        ph_field_other: 'Hansı ixtisas? məs. Aviasiya',
+        undecided_country_note: 'Narahat olmayın — ölkəni məsləhətçi ilə birlikdə seçəcəksiniz.',
+        undecided_field_note: 'Narahat olmayın — ixtisası məsləhətçi ilə birlikdə seçəcəksiniz.',
+        suggest_title: 'Büdcənizə və imtahanınıza görə uyğun ola biləcək ölkələr',
+        suggest_hint: 'Birinə toxunsanız seçiminizə əlavə olunur.',
+        budget_scholarship: 'Yalnız təqaüdlə',
+        scholarship_note_title: 'Təqaüd yüksək akademik nəticə tələb edir',
+        scholarship_note_body: 'Əksər təqaüdlər üçün güclü IELTS/TOEFL, SAT/YÖS balı və yüksək orta bal lazımdır. Hazırlıq lazımdırsa, mərkəzimizin kursları haqqında məsləhətçidən soruşun.',
+        val_undecided: 'Qərar verməyib',
+        ns_undecided_title: 'Seçimdə kömək lazımdır',
+        ns_undecided_sub: 'Ölkə və ya ixtisası hələ seçməmisiniz — məsləhətçi ilə görüşdə birlikdə müəyyən edəcəksiniz.',
+        res_undecided_title: 'Seçimi birlikdə edəcəyik',
+        res_undecided_sub: 'Ölkə və ya ixtisası hələ seçməmisiniz — konsultasiyada sizinlə birlikdə müəyyən edəcəyik. Aşağıdakı düymə ilə görüş planlaşdırın.',
         lvl_phd: 'Doktorantura',
         prev_edu_title_master: 'Bakalavr təhsiliniz',
         prev_edu_title_phd: 'Magistr təhsiliniz',
@@ -2861,6 +3063,22 @@
 
       en: {
         page_title: 'BTM - Study Abroad',
+        extra_undecided: 'I haven\'t decided yet',
+        extra_other: 'Other',
+        ph_country_other: 'Which country? e.g. Luxembourg',
+        ph_field_other: 'Which field? e.g. Aviation',
+        undecided_country_note: 'Don\'t worry — you will choose the country together with an advisor.',
+        undecided_field_note: 'Don\'t worry — you will choose the field together with an advisor.',
+        suggest_title: 'Countries that may suit your budget and exams',
+        suggest_hint: 'Tap one to add it to your choices.',
+        budget_scholarship: 'Scholarship only',
+        scholarship_note_title: 'Scholarships require strong academic results',
+        scholarship_note_body: 'Most scholarships need strong IELTS/TOEFL and SAT/YÖS scores and a high GPA. If you need to prepare, ask your advisor about our courses.',
+        val_undecided: 'Undecided',
+        ns_undecided_title: 'Let us help you choose',
+        ns_undecided_sub: 'You haven\'t picked a country or field yet — you\'ll decide together with an advisor in a consultation.',
+        res_undecided_title: 'We\'ll choose together',
+        res_undecided_sub: 'You haven\'t picked a country or field yet — we\'ll work it out with you in a consultation. Book one with the button below.',
         lvl_phd: 'PhD',
         prev_edu_title_master: 'Your bachelor\'s degree',
         prev_edu_title_phd: 'Your master\'s degree',
@@ -3173,6 +3391,22 @@
 
       ru: {
         page_title: 'BTM - Обучение за рубежом',
+        extra_undecided: 'Ещё не решил(а)',
+        extra_other: 'Другое',
+        ph_country_other: 'Какая страна? напр. Люксембург',
+        ph_field_other: 'Какая специальность? напр. Авиация',
+        undecided_country_note: 'Не переживайте — страну вы выберете вместе с консультантом.',
+        undecided_field_note: 'Не переживайте — специальность вы выберете вместе с консультантом.',
+        suggest_title: 'Страны, которые могут подойти по бюджету и экзаменам',
+        suggest_hint: 'Нажмите на страну, чтобы добавить её в выбор.',
+        budget_scholarship: 'Только со стипендией',
+        scholarship_note_title: 'Стипендия требует высоких академических результатов',
+        scholarship_note_body: 'Для большинства стипендий нужны высокие баллы IELTS/TOEFL, SAT/YÖS и высокий средний балл. Если нужна подготовка, спросите консультанта о курсах нашего центра.',
+        val_undecided: 'Не определился',
+        ns_undecided_title: 'Поможем с выбором',
+        ns_undecided_sub: 'Вы ещё не выбрали страну или специальность — определитесь вместе с консультантом на встрече.',
+        res_undecided_title: 'Выберем вместе',
+        res_undecided_sub: 'Вы ещё не выбрали страну или специальность — определим это вместе на консультации. Запишитесь кнопкой ниже.',
         lvl_phd: 'Докторантура (PhD)',
         prev_edu_title_master: 'Ваш бакалавриат',
         prev_edu_title_phd: 'Ваша магистратура',
@@ -3485,6 +3719,22 @@
 
       tr: {
         page_title: 'BTM - Yurt Dışı Eğitim',
+        extra_undecided: 'Henüz karar vermedim',
+        extra_other: 'Diğer',
+        ph_country_other: 'Hangi ülke? örn. Lüksemburg',
+        ph_field_other: 'Hangi bölüm? örn. Havacılık',
+        undecided_country_note: 'Endişelenmeyin — ülkeyi danışmanla birlikte seçeceksiniz.',
+        undecided_field_note: 'Endişelenmeyin — bölümü danışmanla birlikte seçeceksiniz.',
+        suggest_title: 'Bütçenize ve sınavınıza uygun olabilecek ülkeler',
+        suggest_hint: 'Birine dokunursanız seçiminize eklenir.',
+        budget_scholarship: 'Yalnızca bursla',
+        scholarship_note_title: 'Burs yüksek akademik başarı gerektirir',
+        scholarship_note_body: 'Çoğu burs için güçlü IELTS/TOEFL, SAT/YÖS puanı ve yüksek not ortalaması gerekir. Hazırlık gerekiyorsa, merkezimizin kurslarını danışmana sorun.',
+        val_undecided: 'Karar vermedi',
+        ns_undecided_title: 'Seçimde yardım lazım',
+        ns_undecided_sub: 'Henüz ülke veya bölüm seçmediniz — danışmanla görüşmede birlikte belirleyeceksiniz.',
+        res_undecided_title: 'Birlikte seçeceğiz',
+        res_undecided_sub: 'Henüz ülke veya bölüm seçmediniz — danışmanlıkta sizinle birlikte belirleyeceğiz. Aşağıdaki düğmeyle görüşme planlayın.',
         lvl_phd: 'Doktora',
         prev_edu_title_master: 'Lisans eğitiminiz',
         prev_edu_title_phd: 'Yüksek lisans eğitiminiz',

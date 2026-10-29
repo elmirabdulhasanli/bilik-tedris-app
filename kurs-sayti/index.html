@@ -796,9 +796,31 @@
           placeholder="məs. +994 50 123 45 67"></div>
       <div class="field"><label data-i18n="q_countries">Hansı ölkələrdə oxumaq istəyirsən? (maks. 5)</label>
         <div class="chip-group" id="f-countries"></div>
+        <!-- Kataloqdan kənar cavablar: qərarsızam / digər -->
+        <div class="chip-group chip-extra" id="f-country-extra">
+          <div class="chip chip-soft" data-extra="undecided" data-i18n="extra_undecided">Hələ qərar verməmişəm</div>
+          <div class="chip chip-soft" data-extra="other" data-i18n="extra_other">Digər</div>
+        </div>
+        <input type="text" id="f-country-other" class="extra-other-input" hidden maxlength="80"
+          placeholder="Hansı ölkə? məs. Lüksemburq" data-i18n-ph="ph_country_other">
+        <p class="undecided-note" id="f-country-undecided-note" hidden data-i18n="undecided_country_note">Narahat olmayın — ölkəni məsləhətçi ilə birlikdə seçəcəksiniz.</p>
+        <!-- Ölkəni bilməyənə büdcə və imtahana görə təklif (app.js: suggestCountries) -->
+        <div class="country-suggest" id="f-country-suggest" hidden>
+          <p class="suggest-title" data-i18n="suggest_title">Büdcənizə və imtahanınıza görə uyğun ola biləcək ölkələr</p>
+          <div class="chip-group suggest-chips"></div>
+          <p class="suggest-hint" data-i18n="suggest_hint">Birinə toxunsanız seçiminizə əlavə olunur.</p>
+        </div>
       </div>
       <div class="field"><label data-i18n="q_fields">Hansı bölmələrdə / ixtisaslarda oxumaq istəyirsən? (maks. 5)</label>
         <div class="chip-group" id="f-fields"></div>
+        <!-- Kataloqdan kənar cavablar: qərarsızam / digər -->
+        <div class="chip-group chip-extra" id="f-field-extra">
+          <div class="chip chip-soft" data-extra="undecided" data-i18n="extra_undecided">Hələ qərar verməmişəm</div>
+          <div class="chip chip-soft" data-extra="other" data-i18n="extra_other">Digər</div>
+        </div>
+        <input type="text" id="f-field-other" class="extra-other-input" hidden maxlength="80"
+          placeholder="Hansı ixtisas? məs. Aviasiya" data-i18n-ph="ph_field_other">
+        <p class="undecided-note" id="f-field-undecided-note" hidden data-i18n="undecided_field_note">Narahat olmayın — ixtisası məsləhətçi ilə birlikdə seçəcəksiniz.</p>
       </div>
       <div class="field">
         <label data-i18n="q_level">Səviyyə</label>
@@ -824,12 +846,17 @@
         <label data-i18n="q_budget">Təxmini illik büdcən (təhsil haqqı + yaşayış)</label>
         <select id="f-budget">
           <option>3 000 &euro;-dan az</option>
+          <option value="Yalnız təqaüdlə" data-i18n-opt="budget_scholarship">Yalnız təqaüdlə</option>
           <option>3 000 &ndash; 7 000 &euro;</option>
           <option>7 000 &ndash; 15 000 &euro;</option>
           <option>15 000 &euro;-dan çox</option>
           <option value="other" data-i18n-opt="budget_other">Digər (özün yaz)</option>
         </select>
         <input type="text" id="f-budget-custom" data-i18n-ph="budget_other_ph" placeholder="məs. 5000 $ və ya 10000 ₼" style="display:none; margin-top:8px;">
+        <div class="scholarship-note" id="f-scholarship-note" hidden>
+          <p class="sn-title" data-i18n="scholarship_note_title">Təqaüd yüksək akademik nəticə tələb edir</p>
+          <p class="sn-body" data-i18n="scholarship_note_body">Əksər təqaüdlər üçün güclü IELTS/TOEFL, SAT/YÖS balı və yüksək orta bal lazımdır. Hazırlıq lazımdırsa, mərkəzimizin kursları haqqında məsləhətçidən soruşun.</p>
+        </div>
       </div>
       <button class="btn" id="submit-onboarding" data-i18n="submit_profile">Profili tamamla</button>
     </div>
@@ -942,6 +969,12 @@
             <div style="display:flex; gap:6px;">
               <input id="student-search" type="text" placeholder="🔍 Axtar..."
                 style="border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:12px; font-family:'Inter',sans-serif; color:var(--ink); width:130px;">
+              <!-- Ofisin ayrıca əlaqə saxlamalı olduğu müraciətçilər -->
+              <select id="student-lead-filter" class="status-select" title="Müraciətçi növü">
+                <option value="all">Hamısı</option>
+                <option value="undecided">❓ Qərarsız</option>
+                <option value="scholarship">🎓 Təqaüd</option>
+              </select>
               <button id="export-students-csv" class="admin-action-btn" style="font-size:11px;">⬇ CSV</button>
             </div>
           </div>
